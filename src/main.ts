@@ -65,6 +65,29 @@ sun.shadow.camera.right = sun.shadow.camera.top   =  120
 scene.add(sun)
 scene.add(new THREE.AmbientLight(0x304060, 0.7))
 
+// Wall-run corridors — tall flat walls for testing movement chaining
+const wallRunConfigs = [
+  { x:  0,  z: -15, w: 0.5, h: 6, d: 12 },   // left wall of corridor
+  { x:  6,  z: -15, w: 0.5, h: 6, d: 12 },   // right wall of corridor
+  { x: -10, z: -30, w: 14,  h: 6, d: 0.5 },  // crossway wall
+  { x:  10, z: -30, w: 0.5, h: 6, d: 12 },   // side wall
+]
+for (const cfg of wallRunConfigs) {
+  const mesh = new THREE.Mesh(
+    new THREE.BoxGeometry(cfg.w, cfg.h, cfg.d),
+    new THREE.MeshStandardMaterial({ color: 0x607d8b, roughness: 0.7 }),
+  )
+  mesh.position.set(cfg.x, cfg.h / 2, cfg.z)
+  mesh.castShadow = true
+  mesh.receiveShadow = true
+  scene.add(mesh)
+
+  const body = new CANNON.Body({ mass: 0, type: CANNON.Body.STATIC })
+  body.addShape(new CANNON.Box(new CANNON.Vec3(cfg.w / 2, cfg.h / 2, cfg.d / 2)))
+  body.position.set(cfg.x, cfg.h / 2, cfg.z)
+  physics.addBody(body)
+}
+
 // Reference boxes — vaultable heights mixed in
 const boxConfigs = [
   // low vaultable crates (0.6–1.2 m)
@@ -133,7 +156,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   player.update(dt)
 
   const basePos = player.getCameraBase()
-  playerCam.update(dt, basePos, player.isMoving(), player.isSprinting())
+  playerCam.update(dt, basePos, player.isMoving(), player.isSprinting(), player.getState())
 
   // Stamina HUD
   staminaFill.style.width = `${player.stamina}%`
