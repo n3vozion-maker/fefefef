@@ -5,6 +5,7 @@ import type { InputManager }  from '../input/InputManager'
 import type { PlayerCamera }  from './PlayerCamera'
 import { bus }                from '../core/EventBus'
 import { Settings }           from '../core/Settings'
+import { TechAbilities }      from './TechAbilities'
 
 // ── Tuning ────────────────────────────────────────────────────────────────────
 
@@ -56,7 +57,8 @@ type MoveState = 'ground' | 'air' | 'wall' | 'vault' | 'slide'
 
 export class PlayerController {
   readonly body: CANNON.Body
-  stamina = STAMINA_MAX
+  stamina  = STAMINA_MAX
+  readonly tech: TechAbilities
 
   private state: MoveState = 'air'
 
@@ -92,10 +94,14 @@ export class PlayerController {
     this.body.updateMassProperties()
     physics.addBody(this.body)
 
+    this.tech = new TechAbilities(this.body)
+
     bus.on<string>('actionDown', (action) => {
       if (action === 'jump')   this.handleJump()
       if (action === 'crouch') this.handleCrouchDown()
       if (action === 'aim')    this.setADS(true)
+      if (action === 'dash')   this.handleDash()
+      if (action === 'parry')  this.handleParry()
     })
     bus.on<string>('actionUp', (action) => {
       if (action === 'crouch') this.handleCrouchUp()
@@ -107,6 +113,7 @@ export class PlayerController {
 
   update(dt: number): void {
     if (this.wallJustLeft > 0) this.wallJustLeft -= dt
+    this.tech.update(dt)
 
     switch (this.state) {
       case 'ground': this.tickGround(dt);  break
@@ -331,6 +338,20 @@ export class PlayerController {
 
   private handleCrouchUp(): void {
     // crouching is read directly from input.isHeld in tickGround
+  }
+
+  private handleDash(): void {
+    if (this.tech.isDashing) return
+    const wishDir = this.inputDir()
+    this.tech.tryDash(wishDir)
+  }
+
+  private handleParry(): void {
+    const pos = new THREE.Vector3(
+      this.body.position.x, this.body.position.y, this.body.position.z,
+    )
+    const fwd = this.playerForward()
+    this.tech.tryParry(pos, fwd, () => [])
   }
 
   // ── Vault ─────────────────────────────────────────────────────────────────────

@@ -31,6 +31,10 @@ import { MissionSelectMenu }  from './hud/MissionSelectMenu'
 import { MissionSystem }      from './missions/MissionSystem'
 import { AudioSystem }        from './audio/AudioSystem'
 import { DEFAULT_MISSIONS }   from './missions/defaultMissions'
+import { DayNightSystem }     from './world/DayNightSystem'
+import { AmmoPickupSystem }   from './world/AmmoPickup'
+import { UnlockSystem }       from './persistence/UnlockSystem'
+import { VehicleSystem }      from './vehicles/VehicleSystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -54,6 +58,9 @@ const missions    = new MissionSystem()
 const audio       = new AudioSystem()
 const hud         = new HUD()
 const loop        = new GameLoop()
+const unlocks     = new UnlockSystem()
+const ammoPickups = new AmmoPickupSystem(renderer.scene)
+const vehicleSys  = new VehicleSystem(renderer.scene, physics, renderer.camera)
 
 // Bosses (placed at their respective POI positions)
 const bossAlpha   = new BossAlpha( 600, -400, physics)
@@ -68,6 +75,8 @@ ServiceLocator.register('world',      world)
 ServiceLocator.register('weaponMgr',  weaponMgr)
 ServiceLocator.register('missions',   missions)
 ServiceLocator.register('audio',      audio)
+ServiceLocator.register('unlocks',    unlocks)
+ServiceLocator.register('vehicles',   vehicleSys)
 
 // ── Missions ──────────────────────────────────────────────────────────────────
 
@@ -98,6 +107,7 @@ spawnPlayer()
 const checkpoint = new CheckpointManager(() => ({
   playerPos: { x: player.body.position.x, y: player.body.position.y, z: player.body.position.z },
   health: playerStats.health, ammo: {}, missionId: null, completedObjectives: [], playtime: 0,
+  timestamp: Date.now(),
 }))
 checkpoint.init()
 
@@ -143,8 +153,15 @@ sun.shadow.camera.near = 1; sun.shadow.camera.far = 1_200
 sun.shadow.camera.left = sun.shadow.camera.bottom = -300
 sun.shadow.camera.right = sun.shadow.camera.top   =  300
 scene.add(sun)
-scene.add(new THREE.AmbientLight(0x4060a0, 0.55))
-scene.add(new THREE.HemisphereLight(0x87ceeb, 0x3a5f3a, 0.4))
+
+const ambientLight = new THREE.AmbientLight(0x4060a0, 0.55)
+const hemiLight    = new THREE.HemisphereLight(0x87ceeb, 0x3a5f3a, 0.4)
+scene.add(ambientLight)
+scene.add(hemiLight)
+
+// ── Day/Night cycle ───────────────────────────────────────────────────────────
+
+const dayNight = new DayNightSystem(sun, ambientLight, hemiLight, scene, scene.fog as THREE.FogExp2)
 
 // Boss meshes
 const mkBossMesh = (color: number, scale: number): THREE.Mesh => {
@@ -156,6 +173,30 @@ const mkBossMesh = (color: number, scale: number): THREE.Mesh => {
 }
 bossAlpha.mesh = mkBossMesh(0x2a3a5a, 1.2); scene.add(bossAlpha.mesh)
 bossHeavy.mesh = mkBossMesh(0x3a2a1a, 1.6); scene.add(bossHeavy.mesh)
+
+// ── Vehicle spawns ────────────────────────────────────────────────────────────
+
+vehicleSys.spawnMotorcycle( 15, 2, 10)
+vehicleSys.spawnMotorcycle(-20, 2,  8)
+vehicleSys.spawnCar(        30, 2, -5)
+vehicleSys.spawnCar(       -35, 2, 12)
+vehicleSys.spawnTank(      580, 2, -380)   // near base alpha
+vehicleSys.spawnTank(     -700, 2,  800)   // near base bravo
+
+// ── Ammo pickup clusters ──────────────────────────────────────────────────────
+
+// Spawn at each major POI — y=2 approximate (terrain will vary slightly)
+const ammoSites: [number, number, number][] = [
+  [ 580, 2, -400],   // base alpha
+  [-700, 2,  820],   // base bravo
+  [ 200, 2,-1200],   // village north
+  [1080, 2,  120],   // outpost east
+  [-900, 2, -200],   // outpost west
+  [  -0, 2,    0],   // spawn area
+]
+for (const [ax, ay, az] of ammoSites) {
+  ammoPickups.spawnCluster(ax, ay, az, 4)
+}
 
 // Lock prompt
 const lockPrompt = document.createElement('div')
@@ -250,8 +291,24 @@ bus.on<number>('fixedUpdate', (dt) => {
   bossAlpha.update(dt, playerPos)
   bossHeavy.update(dt, playerPos)
 
-  const basePos = player.getCameraBase()
-  playerCam.update(dt, basePos, player.isMoving(), player.isSprinting(), player.getState())
+  // Day/night, ammo, vehicles
+  dayNight.update(dt)
+  ammoPickups.update(dt, playerPos)
+  vehicleSys.update(
+    dt,
+    input.isHeld('moveForward'), input.isHeld('moveBack'),
+    input.isHeld('moveLeft'),    input.isHeld('moveRight'),
+    input.mouseButtons.left,     input.mouseButtons.right,
+    playerPos, player.body,
+    playerCam.getYaw(), playerCam.getPitch(),
+  )
+
+  // Only drive first-person camera when not in a vehicle
+  const inVehicle = vehicleSys.isOccupied
+  if (!inVehicle) {
+    const basePos = player.getCameraBase()
+    playerCam.update(dt, basePos, player.isMoving(), player.isSprinting(), player.getState())
+  }
   viewmodel.update(dt, weaponMgr.isADS(), w?.getIsReloading() ?? false)
 
   hud.update(w, playerStats, player.stamina)
@@ -261,13 +318,23 @@ bus.on<number>('fixedUpdate', (dt) => {
   audio.update({ x: playerPos.x, y: playerPos.y, z: playerPos.z }, { x: fwd.x, y: fwd.y, z: fwd.z })
 
   const p = player.body.position
-  devLabel.textContent = `${player.getState().padEnd(8)} | ${p.x.toFixed(0)},${p.y.toFixed(1)},${p.z.toFixed(0)} | hp:${playerStats.health.toFixed(0)} | 🧨${grenades.count}`
+  const phase = dayNight.phase
+  devLabel.textContent = `${player.getState().padEnd(8)} | ${p.x.toFixed(0)},${p.y.toFixed(1)},${p.z.toFixed(0)} | hp:${playerStats.health.toFixed(0)} | 🧨${grenades.count} | ${phase} | dash:${player.tech.charges}/${player.tech.chargeMax}`
 })
 
 // Grenade keybind — single throw per press (not hold)
 bus.on<string>('actionDown', (a) => {
   if (a === 'grenade') {
     grenades.throw(playerCam.getMuzzleOrigin(), playerCam.getMuzzleDirection())
+  }
+
+  // Vehicle enter (E) / exit (F)
+  if (a === 'interact' && !vehicleSys.isOccupied) {
+    const pp = player.body.position
+    vehicleSys.tryEnter(new THREE.Vector3(pp.x, pp.y, pp.z))
+  }
+  if (a === 'vehicleExit' && vehicleSys.isOccupied) {
+    vehicleSys.tryExit(player.body)
   }
 })
 

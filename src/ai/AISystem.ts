@@ -3,6 +3,10 @@ import { AIAgent }        from './AIAgent'
 import { SquadManager }   from './SquadManager'
 import { bus }            from '../core/EventBus'
 import type { PhysicsWorld } from '../physics/PhysicsWorld'
+import { EnemySniper }   from './enemies/EnemySniper'
+import { EnemyRobot }    from './enemies/EnemyRobot'
+import { EnemyDrone }    from './enemies/EnemyDrone'
+import { EnemyTank }     from './enemies/EnemyTank'
 
 // Simple enemy soldier mesh (capsule approximation)
 function makeAgentMesh(): THREE.Mesh {
@@ -36,11 +40,29 @@ const SPAWN_GROUPS: SpawnGroup[] = [
 
 const SPAWN_SCATTER = 14   // m — random offset around group centre
 
+// Positions for special enemy types
+const SNIPER_SPAWNS:   [number, number][] = [
+  [ 650, -320], [-730,  860], [ 200,-1120], [1050,  180],
+]
+const ROBOT_SPAWNS:    [number, number][] = [
+  [ 400,  280], [-800, -250], [ 740, -700], [-350,  550],
+]
+const DRONE_SPAWNS:    [number, number][] = [
+  [ 620, -390], [-720,  810], [ 190,-1190], [-510, -800],
+]
+const TANK_SPAWNS:     [number, number][] = [
+  [ 570, -420], [-690,  830],
+]
+
 export class AISystem {
-  private agents:  AIAgent[]       = []
-  private squads:  SquadManager[]  = []
-  private scene:   THREE.Scene
-  private physics: PhysicsWorld
+  private agents:   AIAgent[]       = []
+  private squads:   SquadManager[]  = []
+  private snipers:  EnemySniper[]   = []
+  private robots:   EnemyRobot[]    = []
+  private drones:   EnemyDrone[]    = []
+  private tanks:    EnemyTank[]     = []
+  private scene:    THREE.Scene
+  private physics:  PhysicsWorld
 
   constructor(scene: THREE.Scene, physics: PhysicsWorld) {
     this.scene   = scene
@@ -62,11 +84,18 @@ export class AISystem {
     }
 
     for (const squad of this.squads) squad.update(dt)
+
+    // Special enemy types (use their own range checks internally)
+    for (const s of this.snipers) s.update(dt, playerPos)
+    for (const r of this.robots)  r.update(dt, playerPos)
+    for (const d of this.drones)  d.update(dt, playerPos)
+    for (const t of this.tanks)   t.update(dt, playerPos)
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
 
   private spawnAll(): void {
+    // Standard infantry
     for (const grp of SPAWN_GROUPS) {
       const squadAgents: AIAgent[] = []
 
@@ -89,6 +118,26 @@ export class AISystem {
         squadAgents.forEach(a => squad.addAgent(a))
         this.squads.push(squad)
       }
+    }
+
+    // Snipers — sit on elevated positions near bases/outposts
+    for (const [x, z] of SNIPER_SPAWNS) {
+      this.snipers.push(new EnemySniper(x, z, this.physics, this.scene))
+    }
+
+    // Robots — patrol around mid-tier zones
+    for (const [x, z] of ROBOT_SPAWNS) {
+      this.robots.push(new EnemyRobot(x, z, this.physics, this.scene))
+    }
+
+    // Drones — airborne near bases
+    for (const [x, z] of DRONE_SPAWNS) {
+      this.drones.push(new EnemyDrone(x, 8, z, this.scene))
+    }
+
+    // Enemy tanks — near the two main bases
+    for (const [x, z] of TANK_SPAWNS) {
+      this.tanks.push(new EnemyTank(x, z, this.physics, this.scene))
     }
   }
 
