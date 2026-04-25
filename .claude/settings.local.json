@@ -1,0 +1,16 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /c/Users/n3voz/projects/pj1 status)",
+      "Bash(git init *)",
+      "Bash(git remote *)",
+      "Bash(git fetch *)",
+      "Bash(git -C /c/Users/n3voz/projects/pj1 remote -v)",
+      "Bash(git -C /c/Users/n3voz/projects/pj1 fetch origin)",
+      "Bash(git add *)",
+      "Bash(git commit -m ' *)",
+      "Bash(git config *)",
+      "Bash(git push *)"
+    ]
+  }
+}

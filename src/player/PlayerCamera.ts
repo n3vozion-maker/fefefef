@@ -5,9 +5,9 @@ import { bus }      from '../core/EventBus'
 const HEAD_BOB_FREQ  = 13
 const HEAD_BOB_AMP   = 0.035
 const FOV_LERP       = 12
-const TILT_DEG       = 12              // camera roll during wall run (degrees)
-const TILT_SPEED     = 10             // lerp speed for tilt
-const SLIDE_BOB_AMP  = 0.015          // subtle camera bounce during slide
+const TILT_SPEED     = 10
+const SLIDE_BOB_AMP  = 0.015
+const RECOIL_RECOVER = 5.5
 
 export class PlayerCamera {
   private yaw         = 0
@@ -18,6 +18,10 @@ export class PlayerCamera {
   private isADS       = false
   private roll        = 0
   private targetRoll  = 0
+
+  // Recoil
+  private recoilPitch = 0
+  private recoilYaw   = 0
 
   constructor(private cam: THREE.PerspectiveCamera) {
     this.currentFov = Settings.fov
@@ -37,9 +41,25 @@ export class PlayerCamera {
     this.pitch  = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch))
   }
 
+  applyRecoil(pitchAmount: number, yawAmount: number): void {
+    const mult = this.isADS ? 0.45 : 1.0
+    this.recoilPitch += pitchAmount * mult
+    this.recoilYaw   += (Math.random() - 0.5) * yawAmount * 2 * mult
+  }
+
   setWallTilt(side: 'left' | 'right' | null): void {
-    const rad = THREE.MathUtils.degToRad(TILT_DEG)
+    const rad = THREE.MathUtils.degToRad(12)
     this.targetRoll = side === 'right' ? -rad : side === 'left' ? rad : 0
+  }
+
+  getMuzzleOrigin(): THREE.Vector3 {
+    return this.cam.position.clone()
+  }
+
+  getMuzzleDirection(): THREE.Vector3 {
+    const dir = new THREE.Vector3(0, 0, -1)
+    dir.applyQuaternion(this.cam.quaternion)
+    return dir
   }
 
   update(
@@ -54,20 +74,23 @@ export class PlayerCamera {
     this.cam.fov = this.currentFov
     this.cam.updateProjectionMatrix()
 
-    // Roll (wall run tilt)
+    // Recoil recovery
+    this.recoilPitch *= Math.max(0, 1 - RECOIL_RECOVER * dt)
+    this.recoilYaw   *= Math.max(0, 1 - RECOIL_RECOVER * dt)
+    this.pitch -= this.recoilPitch * dt * 60
+    this.yaw   -= this.recoilYaw   * dt * 60
+    this.pitch  = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch))
+
+    // Roll
     this.roll += (this.targetRoll - this.roll) * Math.min(1, TILT_SPEED * dt)
 
-    // Rotation — YXZ so yaw applied first, then pitch, then roll
     this.cam.quaternion.setFromEuler(new THREE.Euler(this.pitch, this.yaw, this.roll, 'YXZ'))
 
     // Head bob
-    let bobX = 0
-    let bobY = 0
+    let bobX = 0, bobY = 0
     if (moving && !this.isADS) {
       const isSliding = state === 'slide'
-      const freq = isSliding ? HEAD_BOB_FREQ * 0.5
-                 : sprinting  ? HEAD_BOB_FREQ * 1.4
-                 :              HEAD_BOB_FREQ
+      const freq = isSliding ? HEAD_BOB_FREQ * 0.5 : sprinting ? HEAD_BOB_FREQ * 1.4 : HEAD_BOB_FREQ
       const amp  = isSliding ? SLIDE_BOB_AMP : HEAD_BOB_AMP
       this.bobTime += dt * freq
       bobY = Math.sin(this.bobTime)       * amp

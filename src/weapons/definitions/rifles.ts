@@ -7,7 +7,7 @@ WeaponRegistry.register({
   damage: 35,
   rateOfFire: 800,
   magazineSize: 30,
-  reloadTime: 2.5,
+  reloadTime: 2.3,
   effectiveRange: 150,
   attachmentSlots: ['scope', 'muzzle', 'grip', 'magazine', 'underbarrel'],
   supportedAmmoTypes: ['standard', 'hollow-point', 'armor-piercing'],
