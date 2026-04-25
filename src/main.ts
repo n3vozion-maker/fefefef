@@ -20,6 +20,8 @@ import { FirearmWeapon }     from './weapons/FirearmWeapon'
 import { WeaponManager }     from './weapons/WeaponManager'
 import { Viewmodel }         from './weapons/Viewmodel'
 import { HUD }               from './hud/HUD'
+import { MissionSystem }     from './missions/MissionSystem'
+import { AudioSystem }       from './audio/AudioSystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -38,6 +40,8 @@ const ai           = new AISystem(renderer.scene, physics)
 const weaponMgr    = new WeaponManager()
 const viewmodel    = new Viewmodel(renderer.camera)
 const hud          = new HUD()
+const missions     = new MissionSystem()
+const audio        = new AudioSystem()
 const loop         = new GameLoop()
 
 ServiceLocator.register('renderer',   renderer)
@@ -46,6 +50,8 @@ ServiceLocator.register('physics',    physics)
 ServiceLocator.register('player',     player)
 ServiceLocator.register('world',      world)
 ServiceLocator.register('weaponMgr',  weaponMgr)
+ServiceLocator.register('missions',   missions)
+ServiceLocator.register('audio',      audio)
 
 // ── Weapons ───────────────────────────────────────────────────────────────────
 
@@ -192,6 +198,13 @@ bus.on<number>('fixedUpdate', (dt) => {
 
   hud.update(w, playerStats, player.stamina)
   hud.tick(dt)
+
+  // Audio listener follows camera
+  const fwd = playerCam.getMuzzleDirection()
+  audio.update(
+    { x: player.body.position.x, y: player.body.position.y, z: player.body.position.z },
+    { x: fwd.x, y: fwd.y, z: fwd.z },
+  )
 
   const p = player.body.position
   devLabel.textContent =
