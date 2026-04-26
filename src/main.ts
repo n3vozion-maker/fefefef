@@ -35,6 +35,7 @@ import { DayNightSystem }     from './world/DayNightSystem'
 import { AmmoPickupSystem }   from './world/AmmoPickup'
 import { UnlockSystem }       from './persistence/UnlockSystem'
 import { VehicleSystem }      from './vehicles/VehicleSystem'
+import { WeaponLoadoutMenu }  from './hud/WeaponLoadoutMenu'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -61,6 +62,7 @@ const loop        = new GameLoop()
 const unlocks     = new UnlockSystem()
 const ammoPickups = new AmmoPickupSystem(renderer.scene)
 const vehicleSys  = new VehicleSystem(renderer.scene, physics, renderer.camera)
+const loadoutMenu = new WeaponLoadoutMenu(weaponMgr)
 
 // Bosses (placed at their respective POI positions)
 const bossAlpha   = new BossAlpha( 600, -400, physics)
@@ -134,7 +136,7 @@ input.init()
 combat.init()
 
 renderer.getCanvas().addEventListener('click', () => {
-  if (!pauseMenu.paused && !gameOver.isVisible() && !missionMenu.isOpen()) {
+  if (!pauseMenu.paused && !gameOver.isVisible() && !missionMenu.isOpen() && !loadoutMenu.isOpen()) {
     input.requestPointerLock(renderer.getCanvas())
   }
 })
@@ -206,7 +208,7 @@ Object.assign(lockPrompt.style, {
   background: 'rgba(0,0,0,0.65)', padding: '12px 24px', borderRadius: '4px',
   pointerEvents: 'none', lineHeight: '1.8',
 })
-lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C slide · Space jump/vault · G grenade · 1/2/3 weapons · M missions · ESC pause</span>'
+lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C slide · Space jump/vault · Ctrl dash · Q parry · G grenade · 1/2/3 weapons · Tab loadout · M missions · E enter vehicle · F exit · ESC pause</span>'
 document.body.appendChild(lockPrompt)
 
 // Dev label
@@ -245,7 +247,8 @@ bus.on<number>('fixedUpdate', (dt) => {
   if (pauseMenu.paused || gameOver.isVisible()) return
 
   const locked = input.isPointerLocked()
-  lockPrompt.style.display = (locked || missionMenu.isOpen()) ? 'none' : ''
+  const menuOpen = missionMenu.isOpen() || loadoutMenu.isOpen()
+  lockPrompt.style.display = (locked || menuOpen) ? 'none' : ''
 
   if (locked) {
     const { x, y } = input.flushMouseDelta()
@@ -269,7 +272,7 @@ bus.on<number>('fixedUpdate', (dt) => {
 
   // Firing
   const w = weaponMgr.activeWeapon()
-  if (w && locked && !missionMenu.isOpen()) {
+  if (w && locked && !menuOpen) {
     const shouldFire = w.isAutomatic ? input.mouseButtons.left : firing
     if (shouldFire) {
       const fired = w.tryFire(playerCam.getMuzzleOrigin(), playerCam.getMuzzleDirection())
@@ -311,7 +314,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   }
   viewmodel.update(dt, weaponMgr.isADS(), w?.getIsReloading() ?? false)
 
-  hud.update(w, playerStats, player.stamina)
+  hud.update(w, playerStats, player.stamina, player.tech)
   hud.tick(dt)
 
   const fwd = playerCam.getMuzzleDirection()

@@ -48,12 +48,23 @@ export class PauseMenu {
     // Keybinds display
     panel.appendChild(this.label('Keybinds', '11px', 'rgba(255,255,255,0.45)'))
     const binds: [string, string][] = [
-      ['WASD', 'Move'],       ['Shift', 'Sprint'],
-      ['C', 'Crouch / Slide'],['Space', 'Jump / Vault'],
-      ['Mouse', 'Look / Fire'],['Right Click', 'ADS'],
-      ['R', 'Reload'],        ['G', 'Grenade'],
-      ['1/2/3', 'Weapons'],   ['M', 'Missions'],
-      ['F5', 'Quicksave'],    ['ESC', 'Pause'],
+      ['WASD',        'Move'],
+      ['Shift',       'Sprint'],
+      ['C',           'Crouch / Slide'],
+      ['Space',       'Jump / Vault'],
+      ['Ctrl',        'Dash  ×2'],
+      ['Q',           'Parry / Punch'],
+      ['Mouse',       'Look / Fire'],
+      ['Right Click', 'ADS'],
+      ['R',           'Reload'],
+      ['G',           'Grenade'],
+      ['1/2/3',       'Weapons'],
+      ['Tab',         'Weapon Loadout'],
+      ['E',           'Interact / Enter Vehicle'],
+      ['F',           'Exit Vehicle'],
+      ['M',           'Missions'],
+      ['F5',          'Quicksave'],
+      ['ESC',         'Pause'],
     ]
     const grid = document.createElement('div')
     Object.assign(grid.style, {

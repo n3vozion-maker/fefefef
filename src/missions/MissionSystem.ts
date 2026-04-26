@@ -31,7 +31,8 @@ export class MissionSystem {
     this.showNotification('✓ Objective complete', '#66bb6a')
 
     if (this.active.complete) {
-      bus.emit('missionComplete', this.active)
+      bus.emit('missionComplete',   this.active)
+      bus.emit('missionCompleted',  { missionId: this.active.id })   // for UnlockSystem
       this.showNotification(`MISSION COMPLETE: ${this.active.title}`, '#66bb6a')
       this.active = null
     }

@@ -12,3 +12,16 @@ WeaponRegistry.register({
   attachmentSlots: ['muzzle', 'grip'],
   supportedAmmoTypes: ['standard', 'hollow-point', 'explosive'],
 })
+
+WeaponRegistry.register({
+  id: 'shotgun_spas',
+  name: 'SPAS-12',
+  category: 'shotgun',
+  damage: 110,
+  rateOfFire: 80,
+  magazineSize: 8,
+  reloadTime: 2.5,
+  effectiveRange: 20,
+  attachmentSlots: ['muzzle', 'grip'],
+  supportedAmmoTypes: ['standard', 'hollow-point', 'explosive'],
+})

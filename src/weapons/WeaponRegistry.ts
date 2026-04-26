@@ -4,7 +4,7 @@ export type AmmoType = 'standard' | 'hollow-point' | 'armor-piercing' | 'subsoni
 export interface WeaponDefinition {
   id: string
   name: string
-  category: 'rifle' | 'pistol' | 'sniper' | 'shotgun' | 'explosive'
+  category: 'rifle' | 'smg' | 'pistol' | 'sniper' | 'shotgun' | 'explosive'
   damage: number
   rateOfFire: number
   magazineSize: number

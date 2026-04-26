@@ -78,11 +78,18 @@ export abstract class WeaponBase {
 
   // ── Getters ───────────────────────────────────────────────────────────────
 
-  getAmmo():      number { return this.ammoInMag }
-  getReserve():   number { return this.reserveAmmo }
-  getMagSize():   number { return this.stats.magazineSize }
+  getAmmo():        number  { return this.ammoInMag }
+  getReserve():     number  { return this.reserveAmmo }
+  getMagSize():     number  { return this.stats.magazineSize }
   getIsReloading(): boolean { return this.isReloading }
-  getStats():     WeaponDefinition { return this.stats }
-  getId():        string { return this.stats.id }
-  getName():      string { return this.stats.name }
+  getStats():       WeaponDefinition { return this.stats }
+  getId():          string  { return this.stats.id }
+  getName():        string  { return this.stats.name }
+  getCategory():    string  { return this.stats.category }
+  getDamage():      number  { return this.stats.damage }
+  getRoF():         number  { return this.stats.rateOfFire }
+
+  addReserve(amount: number): void {
+    this.reserveAmmo += amount
+  }
 }

@@ -15,10 +15,13 @@ type FirearmConfig = {
 const PRESETS: Record<string, FirearmConfig> = {
   rifle_m4a1:         { automatic: true,  recoilP: 0.022, recoilY: 0.006, spread: 0.008 },
   rifle_ak47:         { automatic: true,  recoilP: 0.030, recoilY: 0.010, spread: 0.012 },
+  smg_mp5:            { automatic: true,  recoilP: 0.015, recoilY: 0.008, spread: 0.014 },
   pistol_m9:          { automatic: false, recoilP: 0.025, recoilY: 0.008 },
   pistol_desert_eagle:{ automatic: false, recoilP: 0.055, recoilY: 0.012 },
   sniper_awp:         { automatic: false, recoilP: 0.080, recoilY: 0.004, spread: 0.001 },
-  shotgun_870:        { automatic: false, recoilP: 0.060, recoilY: 0.020, pellets: 8, spread: 0.06 },
+  sniper_barrett:     { automatic: false, recoilP: 0.110, recoilY: 0.003, spread: 0.0005 },
+  shotgun_870:        { automatic: false, recoilP: 0.060, recoilY: 0.020, pellets: 8,  spread: 0.06 },
+  shotgun_spas:       { automatic: false, recoilP: 0.055, recoilY: 0.018, pellets: 10, spread: 0.07 },
   explosive_rpg7:     { automatic: false, recoilP: 0.100, recoilY: 0.005 },
   explosive_grenade:  { automatic: false, recoilP: 0.040, recoilY: 0.010 },
 }
