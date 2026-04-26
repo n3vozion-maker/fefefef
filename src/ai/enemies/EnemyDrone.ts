@@ -188,4 +188,6 @@ export class EnemyDrone {
     }
     this.rockets.length = 0
   }
+
+  getPosition(): THREE.Vector3 { return this.pos.clone() }
 }

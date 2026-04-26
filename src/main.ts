@@ -39,6 +39,7 @@ import { WeaponLoadoutMenu }      from './hud/WeaponLoadoutMenu'
 import { ConsumableInventory }    from './player/ConsumableInventory'
 import { VehiclePickupSystem }    from './vehicles/VehiclePickups'
 import { EndgameSystem }          from './missions/EndgameSystem'
+import { Minimap }                from './hud/Minimap'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -69,6 +70,7 @@ const loadoutMenu    = new WeaponLoadoutMenu(weaponMgr)
 const consumables    = new ConsumableInventory()
 const vehiclePickups = new VehiclePickupSystem(renderer.scene)
 const endgame        = new EndgameSystem(unlocks)
+const minimap        = new Minimap()
 
 // Bosses (placed at their respective POI positions)
 const bossAlpha   = new BossAlpha( 600, -400, physics)
@@ -276,6 +278,15 @@ bus.on<{ position: THREE.Vector3; radius: number; damage: number }>('blastDamage
   }
 })
 
+// ── Tank cannon → world blast ─────────────────────────────────────────────────
+// Project the shell 150 m along aim direction and detonate as blast damage
+
+bus.on<{ origin: THREE.Vector3; direction: THREE.Vector3; damage: number }>('tankCannonFired', (e) => {
+  const blastPos = e.origin.clone().addScaledVector(e.direction.normalize(), 150)
+  bus.emit('explosion',   { position: blastPos })
+  bus.emit('blastDamage', { position: blastPos, radius: 14, damage: e.damage })
+})
+
 // ── Vehicle repair / refuel with consumables ─────────────────────────────────
 
 bus.on<string>('actionDown', (a) => {
@@ -302,6 +313,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   const locked = input.isPointerLocked()
   const menuOpen = missionMenu.isOpen() || loadoutMenu.isOpen()
   lockPrompt.style.display = (locked || menuOpen) ? 'none' : ''
+  minimap.setVisible(locked && !menuOpen)
 
   if (locked) {
     const { x, y } = input.flushMouseDelta()
@@ -346,6 +358,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   ai.update(dt, playerPos)
   bossAlpha.update(dt, playerPos)
   bossHeavy.update(dt, playerPos)
+  minimap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions(), null)
 
   // Day/night, ammo, vehicles, endgame
   dayNight.update(dt)

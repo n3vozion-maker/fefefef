@@ -182,6 +182,36 @@ export class AISystem {
     }
   }
 
+  /** Returns world positions of all living enemies (for minimap) */
+  getAgentPositions(): THREE.Vector3[] {
+    const out: THREE.Vector3[] = []
+    for (const a of this.agents) {
+      if (a.isDead()) continue
+      const p = a.body.position
+      out.push(new THREE.Vector3(p.x, p.y, p.z))
+    }
+    for (const s of this.snipers) {
+      if (!s.alive) continue
+      const p = s.body.position
+      out.push(new THREE.Vector3(p.x, p.y, p.z))
+    }
+    for (const r of this.robots) {
+      if (!r.alive) continue
+      const p = r.body.position
+      out.push(new THREE.Vector3(p.x, p.y, p.z))
+    }
+    for (const d of this.drones) {
+      if (!d.alive) continue
+      out.push(d.getPosition())
+    }
+    for (const t of this.tanks) {
+      if (!t.alive) continue
+      const p = t.body.position
+      out.push(new THREE.Vector3(p.x, p.y, p.z))
+    }
+    return out
+  }
+
   private spawnSpecialEnemies(): void {
     for (const [x, z] of SNIPER_SPAWNS) {
       this.snipers.push(new EnemySniper(x, z, this.physics, this.scene))
