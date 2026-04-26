@@ -23,7 +23,10 @@ const WHEEL_POSITIONS: [number, number, number][] = [
 // ── TankVehicle (player-drivable) ─────────────────────────────────────────────
 
 export class TankVehicle extends VehicleBase {
-  override type = 'tank_veh' as const
+  override type      = 'tank_veh' as const
+  override maxHealth = 1400
+  override maxFuel   = 120
+  override fuelDrain = 3.5
   protected override camOffset = new THREE.Vector3(0, 5, -10)
 
   private turretGroup!: THREE.Group
@@ -137,23 +140,23 @@ export class TankVehicle extends VehicleBase {
     brake: boolean,
     dt: number,
   ): void {
-    const speed = this.chassisBody.velocity.length()
-    const force = fwd  ?  MAX_FORCE  :
-                  back ? -MAX_FORCE * 0.4 : 0
-    const steer = left  ?  MAX_STEER :
-                  right ? -MAX_STEER : 0
+    const moving   = fwd || back
+    this.tickFuel(dt, moving)
+
+    const speed    = this.chassisBody.velocity.length()
+    const canDrive = this.hasFuel() && this.alive
+    const force    = canDrive ? (fwd ? MAX_FORCE : back ? -MAX_FORCE * 0.4 : 0) : 0
+    const steer    = left ? MAX_STEER : right ? -MAX_STEER : 0
 
     for (let i = 0; i < 6; i++) {
       this.vehicle.applyEngineForce(speed < MAX_SPEED ? force : 0, i)
     }
-    // Front pair steers
-    this.vehicle.setSteeringValue( steer, 0)
-    this.vehicle.setSteeringValue( steer, 1)
+    this.vehicle.setSteeringValue(steer, 0)
+    this.vehicle.setSteeringValue(steer, 1)
 
     const brakeF = brake ? BRAKE_FORCE : (fwd || back ? 0 : 15)
     for (let i = 0; i < 6; i++) this.vehicle.setBrake(brakeF, i)
 
-    // Cooldowns
     this.cannonCd -= dt
     this.coaxCd   -= dt
   }

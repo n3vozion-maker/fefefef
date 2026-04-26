@@ -14,6 +14,15 @@ export abstract class VehicleBase {
   occupied       = false
   abstract type: VehicleType
 
+  // ── Health & fuel ──────────────────────────────────────────────────────────
+  abstract maxHealth: number
+  abstract maxFuel:   number
+  abstract fuelDrain: number   // litres per second while moving
+
+  health = 100   // overwritten after buildChassis by subclass
+  fuel   = 100   // overwritten after buildChassis by subclass
+  alive  = true
+
   // Third-person cam anchor
   protected camOffset = new THREE.Vector3(0, 3, -7)
 
@@ -86,6 +95,45 @@ export abstract class VehicleBase {
       this.chassisBody.position.y + 1.5,
       this.chassisBody.position.z,
     )
+  }
+
+  // ── Health & fuel API ─────────────────────────────────────────────────────
+
+  takeDamage(dmg: number): void {
+    if (!this.alive) return
+    this.health = Math.max(0, this.health - dmg)
+    bus.emit('vehicleDamaged', { type: this.type, health: this.health, max: this.maxHealth })
+    if (this.health <= 0) this.destroy()
+  }
+
+  repair(amount: number): void {
+    this.health = Math.min(this.maxHealth, this.health + amount)
+    bus.emit('vehicleDamaged', { type: this.type, health: this.health, max: this.maxHealth })
+  }
+
+  refuel(amount: number): void {
+    this.fuel = Math.min(this.maxFuel, this.fuel + amount)
+    bus.emit('vehicleFueled', { type: this.type, fuel: this.fuel, max: this.maxFuel })
+  }
+
+  hasFuel(): boolean { return this.fuel > 0 }
+
+  protected tickFuel(dt: number, moving: boolean): void {
+    if (!moving || !this.hasFuel()) return
+    this.fuel = Math.max(0, this.fuel - this.fuelDrain * dt)
+    bus.emit('vehicleFueled', { type: this.type, fuel: this.fuel, max: this.maxFuel })
+  }
+
+  private destroy(): void {
+    this.alive    = false
+    const pos     = this.getPosition()
+    bus.emit('explosion',   { position: pos.clone(), scale: 1.8 })
+    bus.emit('blastDamage', { position: pos, radius: 10, damage: 200 })
+    if (this.occupied) this.exit()
+    this.vehicle.removeFromWorld(this.physics.world)
+    this.scene.remove(this.chassisMesh)
+    for (const w of this.wheelMeshes) this.scene.remove(w)
+    bus.emit('vehicleDestroyed', { type: this.type })
   }
 
   // ── Update ────────────────────────────────────────────────────────────────

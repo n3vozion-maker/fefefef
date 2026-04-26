@@ -17,12 +17,18 @@ function makeAgentMesh(): THREE.Mesh {
   return mesh
 }
 
+const RESPAWN_TIME = 120   // seconds before a dead group respawns
+
 interface SpawnGroup {
   cx:    number
   cz:    number
   count: number
   squad: boolean
+  respawnTimer?: number   // countdown; undefined = alive
 }
+
+// Ammo types dropped by infantry
+const INFANTRY_AMMO_DROPS: Array<'rifle' | 'pistol'> = ['rifle', 'pistol', 'rifle', 'pistol', 'rifle']
 
 // Predefined enemy spawn groups (world coordinates of group centres)
 const SPAWN_GROUPS: SpawnGroup[] = [
@@ -63,17 +69,20 @@ export class AISystem {
   private tanks:    EnemyTank[]     = []
   private scene:    THREE.Scene
   private physics:  PhysicsWorld
+  private groups:   SpawnGroup[]    = []
+  private endgame   = false
 
   constructor(scene: THREE.Scene, physics: PhysicsWorld) {
     this.scene   = scene
     this.physics = physics
     this.spawnAll()
+    this.spawnSpecialEnemies()
 
-    bus.on<string>('agentDied', (id) => this.removeAgent(id))
+    bus.on<string>('agentDied', (id) => this.onAgentDied(id))
+    bus.on('endgameStarted', () => { this.endgame = true })
   }
 
   update(dt: number, playerPos: THREE.Vector3): void {
-    // Only update agents within 80m of player for performance
     const UPDATE_RADIUS_SQ = 80 * 80
     for (const agent of this.agents) {
       if (agent.isDead()) continue
@@ -85,67 +94,106 @@ export class AISystem {
 
     for (const squad of this.squads) squad.update(dt)
 
-    // Special enemy types (use their own range checks internally)
     for (const s of this.snipers) s.update(dt, playerPos)
     for (const r of this.robots)  r.update(dt, playerPos)
     for (const d of this.drones)  d.update(dt, playerPos)
     for (const t of this.tanks)   t.update(dt, playerPos)
+
+    // Respawn in endgame
+    if (this.endgame) this.tickRespawn(dt)
+  }
+
+  private tickRespawn(dt: number): void {
+    for (const grp of this.groups) {
+      if (grp.respawnTimer === undefined) continue
+      grp.respawnTimer -= dt
+      if (grp.respawnTimer <= 0) {
+        grp.respawnTimer = undefined
+        this.spawnGroup(grp)
+      }
+    }
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
 
   private spawnAll(): void {
-    // Standard infantry
     for (const grp of SPAWN_GROUPS) {
-      const squadAgents: AIAgent[] = []
-
-      for (let i = 0; i < grp.count; i++) {
-        const x = grp.cx + (Math.random() - 0.5) * SPAWN_SCATTER * 2
-        const z = grp.cz + (Math.random() - 0.5) * SPAWN_SCATTER * 2
-
-        const agent = new AIAgent(x, z, this.physics)
-        const mesh  = makeAgentMesh()
-        mesh.position.set(x, 1, z)
-        this.scene.add(mesh)
-        agent.mesh = mesh
-
-        this.agents.push(agent)
-        if (grp.squad) squadAgents.push(agent)
-      }
-
-      if (grp.squad && squadAgents.length >= 2) {
-        const squad = new SquadManager()
-        squadAgents.forEach(a => squad.addAgent(a))
-        this.squads.push(squad)
-      }
+      this.groups.push(grp)
+      this.spawnGroup(grp)
     }
 
-    // Snipers — sit on elevated positions near bases/outposts
-    for (const [x, z] of SNIPER_SPAWNS) {
-      this.snipers.push(new EnemySniper(x, z, this.physics, this.scene))
-    }
+  }
 
-    // Robots — patrol around mid-tier zones
-    for (const [x, z] of ROBOT_SPAWNS) {
-      this.robots.push(new EnemyRobot(x, z, this.physics, this.scene))
+  private spawnGroup(grp: SpawnGroup): void {
+    const squadAgents: AIAgent[] = []
+    for (let i = 0; i < grp.count; i++) {
+      const x = grp.cx + (Math.random() - 0.5) * SPAWN_SCATTER * 2
+      const z = grp.cz + (Math.random() - 0.5) * SPAWN_SCATTER * 2
+      const agent = new AIAgent(x, z, this.physics)
+      const mesh  = makeAgentMesh()
+      mesh.position.set(x, 1, z)
+      this.scene.add(mesh)
+      agent.mesh = mesh
+      this.agents.push(agent)
+      if (grp.squad) squadAgents.push(agent)
     }
-
-    // Drones — airborne near bases
-    for (const [x, z] of DRONE_SPAWNS) {
-      this.drones.push(new EnemyDrone(x, 8, z, this.scene))
-    }
-
-    // Enemy tanks — near the two main bases
-    for (const [x, z] of TANK_SPAWNS) {
-      this.tanks.push(new EnemyTank(x, z, this.physics, this.scene))
+    if (grp.squad && squadAgents.length >= 2) {
+      const squad = new SquadManager()
+      squadAgents.forEach(a => squad.addAgent(a))
+      this.squads.push(squad)
     }
   }
 
-  private removeAgent(id: string): void {
+  private onAgentDied(id: string): void {
     const agent = this.agents.find(a => a.id === id)
     if (!agent) return
+
+    // Drop ammo at death position
+    const pos = agent.getPosition()
+    const ammoType = INFANTRY_AMMO_DROPS[Math.floor(Math.random() * INFANTRY_AMMO_DROPS.length)] ?? 'rifle'
+    bus.emit('enemyAmmoDrop', {
+      position: pos,
+      ammoType,
+      amount: 15 + Math.floor(Math.random() * 20),
+    })
+
+    // Remove mesh after 3s
     setTimeout(() => {
       if (agent.mesh) this.scene.remove(agent.mesh)
-    }, 3_000)   // leave corpse for 3s
+    }, 3000)
+
+    // Check if this group is fully dead → start respawn
+    this.checkGroupRespawn()
+  }
+
+  private checkGroupRespawn(): void {
+    for (const grp of this.groups) {
+      if (grp.respawnTimer !== undefined) continue
+      // Find agents that belong to this group (by proximity to centre)
+      const groupAgents = this.agents.filter(a => {
+        const dx = a.body.position.x - grp.cx
+        const dz = a.body.position.z - grp.cz
+        return Math.sqrt(dx * dx + dz * dz) < SPAWN_SCATTER * 3
+      })
+      const allDead = groupAgents.length > 0 && groupAgents.every(a => a.isDead())
+      if (allDead && this.endgame) {
+        grp.respawnTimer = RESPAWN_TIME
+      }
+    }
+  }
+
+  private spawnSpecialEnemies(): void {
+    for (const [x, z] of SNIPER_SPAWNS) {
+      this.snipers.push(new EnemySniper(x, z, this.physics, this.scene))
+    }
+    for (const [x, z] of ROBOT_SPAWNS) {
+      this.robots.push(new EnemyRobot(x, z, this.physics, this.scene))
+    }
+    for (const [x, z] of DRONE_SPAWNS) {
+      this.drones.push(new EnemyDrone(x, 8, z, this.scene))
+    }
+    for (const [x, z] of TANK_SPAWNS) {
+      this.tanks.push(new EnemyTank(x, z, this.physics, this.scene))
+    }
   }
 }

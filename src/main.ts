@@ -35,7 +35,10 @@ import { DayNightSystem }     from './world/DayNightSystem'
 import { AmmoPickupSystem }   from './world/AmmoPickup'
 import { UnlockSystem }       from './persistence/UnlockSystem'
 import { VehicleSystem }      from './vehicles/VehicleSystem'
-import { WeaponLoadoutMenu }  from './hud/WeaponLoadoutMenu'
+import { WeaponLoadoutMenu }      from './hud/WeaponLoadoutMenu'
+import { ConsumableInventory }    from './player/ConsumableInventory'
+import { VehiclePickupSystem }    from './vehicles/VehiclePickups'
+import { EndgameSystem }          from './missions/EndgameSystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -62,7 +65,10 @@ const loop        = new GameLoop()
 const unlocks     = new UnlockSystem()
 const ammoPickups = new AmmoPickupSystem(renderer.scene)
 const vehicleSys  = new VehicleSystem(renderer.scene, physics, renderer.camera)
-const loadoutMenu = new WeaponLoadoutMenu(weaponMgr)
+const loadoutMenu    = new WeaponLoadoutMenu(weaponMgr)
+const consumables    = new ConsumableInventory()
+const vehiclePickups = new VehiclePickupSystem(renderer.scene)
+const endgame        = new EndgameSystem(unlocks)
 
 // Bosses (placed at their respective POI positions)
 const bossAlpha   = new BossAlpha( 600, -400, physics)
@@ -200,6 +206,22 @@ for (const [ax, ay, az] of ammoSites) {
   ammoPickups.spawnCluster(ax, ay, az, 4)
 }
 
+// ── Vehicle pickup clusters (repair kits + fuel canisters) ────────────────────
+
+const vehiclePickupSites: [number, number, number][] = [
+  [  20, 2,   20],   // spawn
+  [ 560, 2, -380],   // base alpha
+  [-680, 2,  800],   // base bravo
+  [ 200, 2,-1180],   // village N
+  [1080, 2,  120],   // outpost E
+  [-880, 2, -200],   // outpost W
+  [  400, 2, 280],   // mid-map
+  [ -350, 2, 530],   // mid-map W
+]
+for (const [vx, vy, vz] of vehiclePickupSites) {
+  vehiclePickups.spawnCluster(vx, vy, vz)
+}
+
 // Lock prompt
 const lockPrompt = document.createElement('div')
 Object.assign(lockPrompt.style, {
@@ -208,7 +230,7 @@ Object.assign(lockPrompt.style, {
   background: 'rgba(0,0,0,0.65)', padding: '12px 24px', borderRadius: '4px',
   pointerEvents: 'none', lineHeight: '1.8',
 })
-lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C slide · Space jump/vault · Ctrl dash · Q parry · G grenade · 1/2/3 weapons · Tab loadout · M missions · E enter vehicle · F exit · ESC pause</span>'
+lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C slide · Space jump/vault · Ctrl dash · Q parry · G grenade · 1/2/3 weapons · Tab loadout · M missions · J side quests · E enter vehicle / repair · F exit · ESC pause</span>'
 document.body.appendChild(lockPrompt)
 
 // Dev label
@@ -234,6 +256,37 @@ bus.on<{ origin: THREE.Vector3; damage: number }>('aiWeaponFired', (e) => {
   const pp   = player.body.position
   const dist = e.origin.distanceTo(new THREE.Vector3(pp.x, pp.y, pp.z))
   if (dist < 45) playerStats.applyDamage(e.damage * Math.max(0, 1 - dist / 80))
+})
+
+// ── Enemy ammo drops → AmmoPickupSystem ──────────────────────────────────────
+
+bus.on<{ position: THREE.Vector3; ammoType: string; amount: number }>('enemyAmmoDrop', (e) => {
+  ammoPickups.spawn(e.position.x, e.position.y + 0.5, e.position.z, e.ammoType as 'rifle' | 'pistol' | 'sniper' | 'explosive')
+})
+
+// ── Blast damage to player vehicles ──────────────────────────────────────────
+
+bus.on<{ position: THREE.Vector3; radius: number; damage: number }>('blastDamage', (e) => {
+  const veh = vehicleSys.activeVehicle
+  if (veh && veh.alive) {
+    const d = veh.getPosition().distanceTo(e.position)
+    if (d < e.radius) {
+      veh.takeDamage(e.damage * (1 - d / e.radius))
+    }
+  }
+})
+
+// ── Vehicle repair / refuel with consumables ─────────────────────────────────
+
+bus.on<string>('actionDown', (a) => {
+  if (a !== 'interact') return
+  const veh = vehicleSys.activeVehicle
+  if (!veh) return
+  if (veh.health < veh.maxHealth && consumables.repairKits > 0) {
+    if (consumables.useRepairKit()) veh.repair(200)
+  } else if (veh.fuel < veh.maxFuel && consumables.fuelCanisters > 0) {
+    if (consumables.useFuelCanister()) veh.refuel(30)
+  }
 })
 
 // ── Game loop ─────────────────────────────────────────────────────────────────
@@ -294,9 +347,11 @@ bus.on<number>('fixedUpdate', (dt) => {
   bossAlpha.update(dt, playerPos)
   bossHeavy.update(dt, playerPos)
 
-  // Day/night, ammo, vehicles
+  // Day/night, ammo, vehicles, endgame
   dayNight.update(dt)
   ammoPickups.update(dt, playerPos)
+  vehiclePickups.update(dt, playerPos, consumables)
+  endgame.update(dt, playerPos)
   vehicleSys.update(
     dt,
     input.isHeld('moveForward'), input.isHeld('moveBack'),
@@ -322,7 +377,9 @@ bus.on<number>('fixedUpdate', (dt) => {
 
   const p = player.body.position
   const phase = dayNight.phase
-  devLabel.textContent = `${player.getState().padEnd(8)} | ${p.x.toFixed(0)},${p.y.toFixed(1)},${p.z.toFixed(0)} | hp:${playerStats.health.toFixed(0)} | 🧨${grenades.count} | ${phase} | dash:${player.tech.charges}/${player.tech.chargeMax}`
+  const veh = vehicleSys.activeVehicle
+  const vehStr = veh ? ` | ${veh.type} hp:${veh.health.toFixed(0)} fuel:${veh.fuel.toFixed(0)}` : ''
+  devLabel.textContent = `${player.getState().padEnd(8)} | ${p.x.toFixed(0)},${p.y.toFixed(1)},${p.z.toFixed(0)} | hp:${playerStats.health.toFixed(0)} | 🧨${grenades.count} | ${phase} | dash:${player.tech.charges}/${player.tech.chargeMax} | 🔧${consumables.repairKits} ⛽${consumables.fuelCanisters}${vehStr}`
 })
 
 // Grenade keybind — single throw per press (not hold)

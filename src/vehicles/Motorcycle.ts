@@ -12,7 +12,10 @@ const MAX_SPEED   = 36   // m/s ~130 km/h
 // ── Motorcycle ────────────────────────────────────────────────────────────────
 
 export class Motorcycle extends VehicleBase {
-  override type = 'motorcycle' as const
+  override type      = 'motorcycle' as const
+  override maxHealth = 250
+  override maxFuel   = 60
+  override fuelDrain = 1.8   // litres/s
   protected override camOffset = new THREE.Vector3(0, 2.2, -5.5)
 
   constructor(
@@ -93,23 +96,25 @@ export class Motorcycle extends VehicleBase {
     fwd: boolean, back: boolean,
     left: boolean, right: boolean,
     brake: boolean,
+    dt: number,
   ): void {
-    const speed = this.chassisBody.velocity.length()
+    const moving = fwd || back
+    this.tickFuel(dt, moving)
 
-    const engineForce = fwd  ? MAX_FORCE  :
-                        back ? -MAX_FORCE * 0.6 : 0
+    const speed = this.chassisBody.velocity.length()
+    const canDrive = this.hasFuel() && this.alive
+
+    const engineForce = canDrive
+      ? (fwd ? MAX_FORCE : back ? -MAX_FORCE * 0.6 : 0)
+      : 0
 
     const steerVal = left  ? MAX_STEER  :
                      right ? -MAX_STEER : 0
 
-    // Rear wheel drive (index 1)
     this.vehicle.applyEngineForce(speed < MAX_SPEED ? engineForce : 0, 1)
-    this.vehicle.applyEngineForce(0, 0)   // front: no engine
-
-    // Front wheel steers (index 0)
+    this.vehicle.applyEngineForce(0, 0)
     this.vehicle.setSteeringValue(steerVal, 0)
 
-    // Braking
     const brakeForce = brake ? BRAKE_FORCE : (fwd || back ? 0 : 5)
     this.vehicle.setBrake(brakeForce, 0)
     this.vehicle.setBrake(brakeForce, 1)

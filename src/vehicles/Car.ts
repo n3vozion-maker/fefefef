@@ -20,7 +20,10 @@ const WHEEL_POSITIONS: [number, number, number][] = [
 // ── Car ───────────────────────────────────────────────────────────────────────
 
 export class Car extends VehicleBase {
-  override type = 'car' as const
+  override type      = 'car' as const
+  override maxHealth = 600
+  override maxFuel   = 80
+  override fuelDrain = 2.2
 
   constructor(
     x: number, y: number, z: number,
@@ -118,20 +121,21 @@ export class Car extends VehicleBase {
     fwd: boolean, back: boolean,
     left: boolean, right: boolean,
     brake: boolean,
+    dt: number,
   ): void {
-    const speed = this.chassisBody.velocity.length()
-    const force = fwd  ? MAX_FORCE  :
-                  back ? -MAX_FORCE * 0.5 : 0
-    const steer = left  ?  MAX_STEER :
-                  right ? -MAX_STEER : 0
+    const moving = fwd || back
+    this.tickFuel(dt, moving)
 
-    // AWD — all four wheels
+    const speed    = this.chassisBody.velocity.length()
+    const canDrive = this.hasFuel() && this.alive
+    const force    = canDrive ? (fwd ? MAX_FORCE : back ? -MAX_FORCE * 0.5 : 0) : 0
+    const steer    = left ? MAX_STEER : right ? -MAX_STEER : 0
+
     for (let i = 0; i < 4; i++) {
       this.vehicle.applyEngineForce(speed < MAX_SPEED ? force : 0, i)
     }
-    // Front steer
-    this.vehicle.setSteeringValue( steer, 0)
-    this.vehicle.setSteeringValue( steer, 1)
+    this.vehicle.setSteeringValue(steer, 0)
+    this.vehicle.setSteeringValue(steer, 1)
 
     const brakeF = brake ? BRAKE_FORCE : (fwd || back ? 0 : 6)
     for (let i = 0; i < 4; i++) {
