@@ -1,6 +1,7 @@
 import { bus }             from '../core/EventBus'
 import type { WeaponBase } from './WeaponBase'
 import { FirearmWeapon }   from './FirearmWeapon'
+import { FlagWeapon }      from './FlagWeapon'
 
 // ── Ammo type → weapon category mapping ──────────────────────────────────────
 
@@ -61,7 +62,10 @@ export class WeaponManager {
     // Weapon unlock → add to backpack, drain any pending ammo for it
     bus.on<{ weaponId: string }>('weaponUnlocked', ({ weaponId }) => {
       if (this.allWeapons().some(w => w.getId() === weaponId)) return
-      const w = new FirearmWeapon(weaponId)
+      // Flag is a special non-firearm weapon
+      const w: WeaponBase = weaponId === 'flag_victory'
+        ? new FlagWeapon()
+        : new FirearmWeapon(weaponId)
       this.drainPendingAmmo(w)
       this.backpack.push(w)
       bus.emit('loadoutChanged', undefined)

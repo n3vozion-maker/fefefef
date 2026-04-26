@@ -40,6 +40,9 @@ import { ConsumableInventory }    from './player/ConsumableInventory'
 import { VehiclePickupSystem }    from './vehicles/VehiclePickups'
 import { EndgameSystem }          from './missions/EndgameSystem'
 import { Minimap }                from './hud/Minimap'
+import { VictoryScreen }         from './hud/VictoryScreen'
+import { ConfettiSystem }        from './effects/ConfettiSystem'
+import { FlagWeapon }            from './weapons/FlagWeapon'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -71,6 +74,10 @@ const consumables    = new ConsumableInventory()
 const vehiclePickups = new VehiclePickupSystem(renderer.scene)
 const endgame        = new EndgameSystem(unlocks)
 const minimap        = new Minimap()
+const confetti       = new ConfettiSystem()
+const victoryScreen  = new VictoryScreen()
+void confetti   // listeners registered in constructor
+void victoryScreen
 
 // Bosses (placed at their respective POI positions)
 const bossAlpha   = new BossAlpha( 600, -400, physics)
@@ -383,7 +390,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   viewmodel.update(dt, weaponMgr.isADS(), w?.getIsReloading() ?? false)
 
   hud.update(w, playerStats, player.stamina, player.tech)
-  hud.tick(dt)
+  hud.tick(dt, (playerStats.health / playerStats.maxHealth) * 100)
 
   const fwd = playerCam.getMuzzleDirection()
   audio.update({ x: playerPos.x, y: playerPos.y, z: playerPos.z }, { x: fwd.x, y: fwd.y, z: fwd.z })

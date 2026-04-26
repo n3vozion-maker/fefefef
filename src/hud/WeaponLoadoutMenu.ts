@@ -11,6 +11,7 @@ const CAT_COLOR: Record<string, string> = {
   shotgun:   '#ffcc80',
   pistol:    '#a5d6a7',
   explosive: '#ef9a9a',
+  flag:      '#ffd700',
 }
 const fallbackColor = '#90a4ae'
 

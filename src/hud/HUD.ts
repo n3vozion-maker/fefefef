@@ -17,6 +17,14 @@ export class HUD {
   private dashPips:  HTMLElement[] = []
   private parryEl:   HTMLElement
 
+  // Style: Postal × Ultrakill
+  private vignetteEl:     HTMLElement
+  private dmgFlashEl:     HTMLElement
+  private killSplashEl:   HTMLElement
+  private dmgFlashTimer   = 0
+  private killSplashTimer = 0
+  private hpCritPulse     = 0
+
   constructor() {
     const root = document.createElement('div')
     Object.assign(root.style, {
@@ -24,6 +32,36 @@ export class HUD {
       fontFamily: 'monospace', userSelect: 'none',
     })
     document.body.appendChild(root)
+
+    // ── Permanent vignette ────────────────────────────────────────────────────
+    this.vignetteEl = this.el(root, {
+      position:   'absolute', inset: '0',
+      background: 'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.72) 100%)',
+      zIndex:     '0',
+      transition: 'background 0.4s',
+    })
+
+    // ── Damage flash ──────────────────────────────────────────────────────────
+    this.dmgFlashEl = this.el(root, {
+      position:  'absolute', inset: '0',
+      background:'rgba(180,0,0,0)',
+      zIndex:    '1',
+      transition:'background 0.06s',
+    })
+
+    // ── Kill splash (centre screen, Ultrakill-style) ───────────────────────────
+    this.killSplashEl = this.el(root, {
+      position:       'absolute', top: '38%', left: '50%',
+      transform:      'translate(-50%,-50%)',
+      fontSize:       '28px', fontWeight: '900',
+      letterSpacing:  '0.3em', color: '#ff3030',
+      textShadow:     '0 0 18px #ff0000, 0 2px 0 #8b0000',
+      opacity:        '0',
+      transition:     'opacity 0.06s',
+      zIndex:         '10',
+      userSelect:     'none',
+    })
+    this.killSplashEl.textContent = 'KILL'
 
     // ── Crosshair ─────────────────────────────────────────────────────────────
 
@@ -133,6 +171,19 @@ export class HUD {
 
     bus.on('damageEvent', () => this.flashHitmarker())
 
+    // Player hit → damage flash
+    bus.on<{ damage: number }>('playerHit', ({ damage }) => {
+      const intensity = Math.min(0.55, damage / 100)
+      this.dmgFlashEl.style.background = `rgba(180,0,0,${intensity.toFixed(2)})`
+      this.dmgFlashTimer = 0.22
+    })
+
+    // Enemy killed → KILL splash
+    bus.on('agentDied', () => {
+      this.killSplashEl.style.opacity  = '1'
+      this.killSplashTimer = 0.45
+    })
+
     // Parry flash
     bus.on('parryStarted', () => {
       this.parryEl.style.background = '#ffffff'
@@ -179,10 +230,39 @@ export class HUD {
     }
   }
 
-  tick(dt: number): void {
+  tick(dt: number, hpPct = 100): void {
     if (this.hitTimer > 0) {
       this.hitTimer -= dt
       if (this.hitTimer <= 0) this.hitmarker.style.opacity = '0'
+    }
+
+    // Damage flash fade
+    if (this.dmgFlashTimer > 0) {
+      this.dmgFlashTimer -= dt
+      if (this.dmgFlashTimer <= 0) {
+        this.dmgFlashEl.style.background = 'rgba(180,0,0,0)'
+      }
+    }
+
+    // Kill splash fade
+    if (this.killSplashTimer > 0) {
+      this.killSplashTimer -= dt
+      if (this.killSplashTimer <= 0) {
+        this.killSplashEl.style.opacity = '0'
+      }
+    }
+
+    // Critical HP: pulse red vignette (Ultrakill heartbeat)
+    if (hpPct < 25) {
+      this.hpCritPulse += dt * 3.5
+      const pulse    = 0.5 + 0.5 * Math.sin(this.hpCritPulse)
+      const alpha    = (0.28 + pulse * 0.22).toFixed(2)
+      this.vignetteEl.style.background =
+        `radial-gradient(ellipse at center, transparent 42%, rgba(140,0,0,${alpha}) 100%)`
+    } else {
+      this.hpCritPulse = 0
+      this.vignetteEl.style.background =
+        'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.72) 100%)'
     }
   }
 

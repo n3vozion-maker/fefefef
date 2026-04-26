@@ -32,8 +32,10 @@ export class PlayerStats {
   applyDamage(amount: number): void {
     if (this.dead) return
     const absorbed = Math.min(this.armour, amount * 0.5)
-    this.health = Math.max(0, this.health - (amount - absorbed))
+    const net = amount - absorbed
+    this.health = Math.max(0, this.health - net)
     this.noHitTimer = REGEN_DELAY
+    bus.emit('playerHit', { damage: net })
   }
 
   respawn(): void {

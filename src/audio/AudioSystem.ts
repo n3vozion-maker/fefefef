@@ -249,6 +249,35 @@ const SOUNDS: Record<string, SoundFn> = {
     ns.connect(lp); lp.connect(g); g.connect(dest); ns.start(t)
   },
 
+  victory_fanfare(ctx, dest) {
+    // Ascending triumphant chord sequence: C4 – E4 – G4 – C5, then held chord
+    const notes = [
+      { f: 261.63, t: 0.00, dur: 0.35 },   // C4
+      { f: 329.63, t: 0.12, dur: 0.35 },   // E4
+      { f: 392.00, t: 0.24, dur: 0.35 },   // G4
+      { f: 523.25, t: 0.36, dur: 0.7  },   // C5 (held)
+      { f: 659.25, t: 0.44, dur: 0.6  },   // E5 (added)
+      { f: 783.99, t: 0.52, dur: 0.55 },   // G5 (added)
+    ]
+    for (const n of notes) {
+      const t2  = ctx.currentTime + n.t
+      // Fundamental
+      const osc = ctx.createOscillator(); osc.type = 'triangle'; osc.frequency.value = n.f
+      const g   = ctx.createGain()
+      g.gain.setValueAtTime(0, t2)
+      g.gain.linearRampToValueAtTime(0.18, t2 + 0.02)
+      g.gain.setValueAtTime(0.18, t2 + n.dur - 0.08)
+      g.gain.linearRampToValueAtTime(0, t2 + n.dur)
+      osc.connect(g); g.connect(dest); osc.start(t2); osc.stop(t2 + n.dur + 0.05)
+      // Octave overtone
+      const osc2 = ctx.createOscillator(); osc2.type = 'sine'; osc2.frequency.value = n.f * 2
+      const g2   = ctx.createGain()
+      g2.gain.setValueAtTime(0, t2); g2.gain.linearRampToValueAtTime(0.06, t2 + 0.02)
+      g2.gain.linearRampToValueAtTime(0, t2 + n.dur)
+      osc2.connect(g2); g2.connect(dest); osc2.start(t2); osc2.stop(t2 + n.dur + 0.05)
+    }
+  },
+
   slide(ctx, dest) {
     const t  = ctx.currentTime
     const ns = noise(ctx, 0.35)
@@ -322,6 +351,7 @@ export class AudioSystem {
     bus.on('reloadStart',    () => this.play('reload'))
     bus.on('ammoPickup',     () => this.play('pickup'))
     bus.on('vehicleEntered', () => this.play('pickup'))
+    bus.on('victoryAchieved',() => this.play('victory_fanfare'))
 
     bus.on<{ damage: number }>('damageEvent', () => this.play('hit_flesh'))
 
