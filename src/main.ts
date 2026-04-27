@@ -54,6 +54,7 @@ import { SideQuestSystem }       from './missions/SideQuestSystem'
 import { ChestSystem }           from './world/ChestSystem'
 import { WaypointHUD, MISSION_POI, POI_REACH_RADIUS } from './hud/WaypointHUD'
 import { SideQuestPanel }        from './hud/SideQuestPanel'
+import { buildAllStructures }    from './world/WorldStructures'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -246,6 +247,9 @@ sqPanel.show(sqSystem.quests[0]!.title, sqSystem.quests[0]!.objectives[0]!.descr
 // Title screen — gates gameplay until ENGAGE is pressed
 const titleScreen = new TitleScreen()
 void bossHealthBar
+
+// ── World structures ──────────────────────────────────────────────────────────
+buildAllStructures(renderer.scene, physics)
 
 // ── Vehicle spawns ────────────────────────────────────────────────────────────
 
