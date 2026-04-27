@@ -383,6 +383,48 @@ bus.on<string>('actionDown', (a) => { if (a === 'fire') firing = true })
 bus.on<string>('actionUp',   (a) => { if (a === 'fire') firing = false })
 
 // ── Apply difficulty + restore checkpoint when ENGAGE is pressed ──────────────
+// ── Sandbox mode — fires after all missions + all GHOST SUPPLY quests ─────────
+bus.on('endgameStarted', () => {
+  // Show persistent SANDBOX badge in top-left
+  const badge = document.createElement('div')
+  Object.assign(badge.style, {
+    position:      'fixed',
+    top:           '10px',
+    left:          '50%',
+    transform:     'translateX(-50%)',
+    fontFamily:    'monospace',
+    fontSize:      '9px',
+    letterSpacing: '.22em',
+    color:         'rgba(255,215,0,0.55)',
+    pointerEvents: 'none',
+    zIndex:        '50',
+    userSelect:    'none',
+    textTransform: 'uppercase',
+  })
+  badge.textContent = '— SANDBOX MODE —'
+  document.body.appendChild(badge)
+
+  // Extra vehicle spawns scattered across the map
+  vehicleSys.spawnMotorcycle( 320,  2,  680)
+  vehicleSys.spawnMotorcycle(-980,  2,  380)
+  vehicleSys.spawnCar(        880,  2, -820)
+  vehicleSys.spawnCar(       -100,  2, -900)
+  vehicleSys.spawnCar(        200,  2,  980)
+  vehicleSys.spawnCar(       1200,  2,  -80)
+  vehicleSys.spawnTank(       750,  2,  420)
+  vehicleSys.spawnTank(      -600,  2, -550)
+
+  // Extra infantry groups spread across the open map
+  ai.spawnReinforcement(  320,  680, 4)
+  ai.spawnReinforcement( -980,  380, 4)
+  ai.spawnReinforcement(  880, -820, 4)
+  ai.spawnReinforcement( -100, -900, 4)
+  ai.spawnReinforcement(  200,  980, 4)
+  ai.spawnReinforcement( 1200,  -80, 4)
+  ai.spawnReinforcement( -600, -550, 5)
+  ai.spawnReinforcement(  750,  420, 5)
+})
+
 bus.on('gameStarted', () => {
   const cfg = DifficultySystem.config
 

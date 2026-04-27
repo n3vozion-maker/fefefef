@@ -69,6 +69,18 @@ export class VictoryScreen {
     })
     el.appendChild(notice)
 
+    // Sandbox hint
+    const sandbox = document.createElement('div')
+    sandbox.textContent = 'Complete all 5 GHOST SUPPLY side quests to unlock Sandbox Mode'
+    Object.assign(sandbox.style, {
+      fontSize:      '10px',
+      color:         'rgba(255,255,255,0.3)',
+      letterSpacing: '0.09em',
+      marginTop:     '10px',
+      userSelect:    'none',
+    })
+    el.appendChild(sandbox)
+
     // Dismiss hint
     const hint = document.createElement('div')
     hint.textContent = 'press any key to continue'

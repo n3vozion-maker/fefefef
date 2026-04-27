@@ -26,25 +26,31 @@ const SIDE_QUESTS: Omit<SideQuest, 'completed' | 'active'>[] = [
   { id: 'sq_8', title: 'Last Stronghold',  description: 'Storm the last enemy stronghold.',          targetPos: new THREE.Vector3( 880,  0, -820), radius: 35, type: 'survive' },
 ]
 
-const TOTAL_WEAPONS = 7   // all weapons in UnlockSystem
+const GHOST_QUEST_COUNT = 5   // all GHOST SUPPLY side quests
 
 // ── EndgameSystem ─────────────────────────────────────────────────────────────
 
 export class EndgameSystem {
-  private active      = false
-  private quests:     SideQuest[] = []
-  private activeQuest: SideQuest | null = null
-  private overlay:    HTMLElement
-  private questPanel: HTMLElement
-  private completedMissions = new Set<string>()
-  private completedQuests   = 0
+  private active               = false
+  private quests:              SideQuest[] = []
+  private activeQuest:         SideQuest | null = null
+  private overlay:             HTMLElement
+  private questPanel:          HTMLElement
+  private completedMissions    = new Set<string>()
+  private completedGhostQuests = 0
 
-  constructor(private unlocks: UnlockSystem) {
+  constructor(_unlocks: UnlockSystem) {
     this.overlay    = this.buildOverlay()
     this.questPanel = this.buildQuestPanel()
 
     bus.on<{ missionId: string }>('missionCompleted', ({ missionId }) => {
       this.completedMissions.add(missionId)
+      this.checkEndgame()
+    })
+
+    // Each GHOST SUPPLY quest completion nudges the counter
+    bus.on<string>('sqCompleted', () => {
+      this.completedGhostQuests++
       this.checkEndgame()
     })
 
@@ -54,17 +60,17 @@ export class EndgameSystem {
   private checkEndgame(): void {
     if (this.active) return
     const allMissions = this.completedMissions.size >= 5
-    const allWeapons  = this.unlocks.getAll().length >= TOTAL_WEAPONS
-    if (allMissions && allWeapons) this.triggerEndgame()
+    const allGhost    = this.completedGhostQuests >= GHOST_QUEST_COUNT
+    if (allMissions && allGhost) this.triggerEndgame()
   }
 
   private triggerEndgame(): void {
     this.active = true
-    this.showNotification('🌍  OPEN WORLD UNLOCKED  —  Side quests are now available', '#ffd700', 5000)
+    this.showNotification('SANDBOX MODE UNLOCKED — The world is yours', '#ffd700', 6000)
     setTimeout(() => {
       this.overlay.style.display = 'flex'
       this.buildQuestList()
-    }, 3000)
+    }, 4000)
     bus.emit('endgameStarted', {})
   }
 
@@ -79,7 +85,7 @@ export class EndgameSystem {
       q.completed   = true
       q.active      = false
       this.activeQuest = null
-      this.completedQuests++
+      this.completedGhostQuests++
       this.showNotification(`✓ ${q.title} — complete!`, '#66bb6a', 3500)
       bus.emit('sideQuestCompleted', { id: q.id })
       this.buildQuestList()
