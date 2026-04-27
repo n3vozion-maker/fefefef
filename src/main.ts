@@ -49,6 +49,7 @@ import { FlagWeapon }            from './weapons/FlagWeapon'
 import { BloodSystem }           from './effects/BloodSystem'
 import { TitleScreen }           from './hud/TitleScreen'
 import { BossHealthBar }         from './hud/BossHealthBar'
+import { DifficultySystem }      from './core/DifficultySystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -134,10 +135,31 @@ spawnPlayer()
 
 const checkpoint = new CheckpointManager(() => ({
   playerPos: { x: player.body.position.x, y: player.body.position.y, z: player.body.position.z },
-  health: playerStats.health, ammo: {}, missionId: null, completedObjectives: [], playtime: 0,
-  timestamp: Date.now(),
+  health:              playerStats.health,
+  ammo:                {},
+  missionId:           missions.getActive()?.id ?? null,
+  completedObjectives: missions.getCompletedObjectiveIds(),
+  playtime:            0,
+  timestamp:           Date.now(),
 }))
 checkpoint.init()
+
+// Auto-checkpoint every time an objective completes
+bus.on('objectiveCompleted', () => {
+  // Small delay so mission state updates before we snapshot it
+  setTimeout(() => {
+    const pp = player.body.position
+    SaveSystem.save({
+      playerPos:           { x: pp.x, y: pp.y, z: pp.z },
+      health:              playerStats.health,
+      ammo:                {},
+      missionId:           missions.getActive()?.id ?? null,
+      completedObjectives: missions.getCompletedObjectiveIds(),
+      playtime:            0,
+      timestamp:           Date.now(),
+    })
+  }, 200)
+})
 
 // ── Game over screen ──────────────────────────────────────────────────────────
 
@@ -269,10 +291,14 @@ document.body.appendChild(devLabel)
 // ── Explosion → blast damage to nearby agents ─────────────────────────────────
 
 bus.on<{ position: THREE.Vector3; radius: number; damage: number }>('blastDamage', (e) => {
-  // Player damage check
+  // Player damage check — scaled by difficulty
   const pp = player.body.position
   const pd = e.position.distanceTo(new THREE.Vector3(pp.x, pp.y, pp.z))
-  if (pd < e.radius) playerStats.applyDamage(e.damage * (1 - pd / e.radius))
+  if (pd < e.radius) {
+    playerStats.applyDamage(
+      e.damage * (1 - pd / e.radius) * DifficultySystem.enemyDamageMult,
+    )
+  }
 })
 
 // ── AI fire hits player ───────────────────────────────────────────────────────
@@ -280,7 +306,11 @@ bus.on<{ position: THREE.Vector3; radius: number; damage: number }>('blastDamage
 bus.on<{ origin: THREE.Vector3; damage: number }>('aiWeaponFired', (e) => {
   const pp   = player.body.position
   const dist = e.origin.distanceTo(new THREE.Vector3(pp.x, pp.y, pp.z))
-  if (dist < 45) playerStats.applyDamage(e.damage * Math.max(0, 1 - dist / 80))
+  if (dist < 45) {
+    playerStats.applyDamage(
+      e.damage * Math.max(0, 1 - dist / 80) * DifficultySystem.enemyDamageMult,
+    )
+  }
 })
 
 // ── Enemy ammo drops → AmmoPickupSystem ──────────────────────────────────────
@@ -328,6 +358,41 @@ bus.on<string>('actionDown', (a) => {
 let firing = false
 bus.on<string>('actionDown', (a) => { if (a === 'fire') firing = true })
 bus.on<string>('actionUp',   (a) => { if (a === 'fire') firing = false })
+
+// ── Apply difficulty + restore checkpoint when ENGAGE is pressed ──────────────
+bus.on('gameStarted', () => {
+  const cfg = DifficultySystem.config
+
+  // Scale player max health
+  playerStats.maxHealth = cfg.playerMaxHp
+  playerStats.health    = cfg.playerMaxHp
+
+  // Scale all infantry health
+  for (const agent of ai.getAgents()) {
+    agent.health = Math.round(agent.health * cfg.enemyHpMult)
+  }
+  // Scale special enemies
+  for (const e of ai.getSpecialEnemies()) {
+    e.hp = Math.round(e.hp * cfg.enemyHpMult)
+  }
+
+  // Scale boss health
+  for (const boss of allBosses) {
+    const scaled    = Math.round(boss.maxHealth * cfg.bossHpMult)
+    boss.health     = scaled
+    boss.maxHealth  = scaled
+  }
+
+  // Restore checkpoint if one exists
+  const save = SaveSystem.load()
+  if (save) {
+    spawnPlayer(save.playerPos.x, save.playerPos.z)
+    playerStats.health = Math.min(save.health, cfg.playerMaxHp)
+    if (save.missionId) {
+      missions.restore(save.missionId, save.completedObjectives)
+    }
+  }
+})
 
 // ── Boss reinforcement → spawn AI agents near boss ────────────────────────────
 bus.on<{ origin: THREE.Vector3; count: number }>('bossReinforce', (e) => {

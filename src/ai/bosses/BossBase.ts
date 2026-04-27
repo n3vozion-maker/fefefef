@@ -12,7 +12,7 @@ export interface BossPhase {
 export abstract class BossBase {
   readonly id:    string
   health:         number
-  readonly maxHealth: number
+  maxHealth:      number
   protected phase = 0
   protected phaseChanged = false
   protected bossName = 'Unknown Boss'

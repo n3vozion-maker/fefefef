@@ -40,6 +40,36 @@ export class MissionSystem {
 
   getActive(): Mission | null { return this.active }
 
+  /** Returns IDs of all objectives completed so far in the active mission */
+  getCompletedObjectiveIds(): string[] {
+    if (!this.active) return []
+    return this.active.objectives
+      .filter(o => o.status === 'complete')
+      .map(o => o.id)
+  }
+
+  /**
+   * Silently restore a mission to a mid-progress state (used on checkpoint load).
+   * Starts the mission and marks each previously-completed objective without
+   * emitting side effects like notifications or unlock events.
+   */
+  restore(missionId: string, completedObjectiveIds: string[]): void {
+    const m = this.missions.get(missionId)
+    if (!m) return
+    m.active   = true
+    this.active = m
+    for (const id of completedObjectiveIds) {
+      const obj = m.objectives.find(o => o.id === id)
+      if (obj) obj.status = 'complete'
+    }
+    // Activate the first non-complete, non-optional objective
+    for (const obj of m.objectives) {
+      if (obj.status !== 'complete') { obj.status = 'active'; break }
+    }
+    bus.emit('missionStarted', m)
+    this.showNotification(`Resuming: ${m.title}`, '#ffa726')
+  }
+
   // ── Internal triggers ───────────────────────────────────────────────────────
 
   private onAgentDied(id: string): void {

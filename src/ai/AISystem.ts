@@ -182,6 +182,14 @@ export class AISystem {
     }
   }
 
+  /** Exposes all infantry agents (for difficulty HP scaling at game start) */
+  getAgents(): AIAgent[] { return this.agents }
+
+  /** All special enemies as objects with a public `hp` field */
+  getSpecialEnemies(): Array<{ hp: number; alive: boolean }> {
+    return [...this.snipers, ...this.robots, ...this.drones, ...this.tanks]
+  }
+
   /** Returns world positions of all living enemies (for minimap) */
   getAgentPositions(): THREE.Vector3[] {
     const out: THREE.Vector3[] = []
