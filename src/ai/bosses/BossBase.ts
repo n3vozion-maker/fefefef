@@ -15,13 +15,16 @@ export abstract class BossBase {
   readonly maxHealth: number
   protected phase = 0
   protected phaseChanged = false
+  protected bossName = 'Unknown Boss'
 
   readonly body: CANNON.Body
-  mesh: THREE.Mesh | null = null
+  mesh: THREE.Group | THREE.Mesh | null = null
 
   protected fireTimer   = 0
   protected moveTimer   = 0
   protected moveTarget  = new THREE.Vector3()
+
+  private aggroed = false
 
   constructor(
     id:                   string,
@@ -70,6 +73,16 @@ export abstract class BossBase {
 
   protected abstract tick(dt: number, playerPos: THREE.Vector3): void
   protected abstract onPhaseChange(newPhase: number): void
+
+  /** Call once per tick — emits bossEncountered on first aggro */
+  protected checkAggro(playerPos: THREE.Vector3, range = 80): void {
+    if (this.aggroed) return
+    if (this.getPosition().distanceTo(playerPos) < range) {
+      this.aggroed = true
+      bus.emit('bossEncountered', { id: this.id, name: this.bossName, maxHealth: this.maxHealth })
+      bus.emit('bossMusic', { intensity: 'phase1' })
+    }
+  }
 
   protected currentPhase(): BossPhase { return this.phases[this.phase]! }
 

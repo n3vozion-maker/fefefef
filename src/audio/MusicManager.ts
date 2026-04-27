@@ -3,7 +3,7 @@ import { bus }              from '../core/EventBus'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type MusicState = 'explore' | 'combat'
+export type MusicState = 'explore' | 'combat' | 'boss1' | 'boss2' | 'boss3'
 
 interface Layer {
   osc:  OscillatorNode
@@ -28,10 +28,24 @@ export class MusicManager {
   private wind: { src: AudioBufferSourceNode; gain: GainNode } | null = null
   private pulseIntervalId: ReturnType<typeof setInterval> | null = null
 
+  private bossActive   = false
+  private bossLayers:  Layer[]   = []
+  private bossPulseId: ReturnType<typeof setInterval> | null = null
+
   constructor(private audio: AudioSystem) {
-    bus.on('weaponFired', () => { this.combatTimer = 14 })
-    bus.on('agentDied',   () => { this.combatTimer = Math.max(this.combatTimer, 8) })
-    bus.on('explosion',   () => { this.combatTimer = Math.max(this.combatTimer, 10) })
+    bus.on('weaponFired', () => { if (!this.bossActive) this.combatTimer = 14 })
+    bus.on('agentDied',   () => { if (!this.bossActive) this.combatTimer = Math.max(this.combatTimer, 8) })
+    bus.on('explosion',   () => { if (!this.bossActive) this.combatTimer = Math.max(this.combatTimer, 10) })
+
+    bus.on<{ intensity: string }>('bossMusic', ({ intensity }) => {
+      if (intensity === 'phase1') this.startBoss(1)
+      if (intensity === 'phase2') this.startBoss(2)
+      if (intensity === 'phase3') this.startBoss(3)
+    })
+    bus.on('bossDied', () => {
+      this.stopBoss()
+      this.combatTimer = 18   // linger in combat after boss dies
+    })
   }
 
   /** Called once AudioContext is available (after first user gesture) */
@@ -43,6 +57,8 @@ export class MusicManager {
   }
 
   update(): void {
+    if (this.bossActive) return   // boss music system takes full control
+
     const dt = 1 / 60
     if (this.combatTimer > 0) this.combatTimer -= dt
     this.stateTimer -= dt
@@ -178,6 +194,82 @@ export class MusicManager {
       layer.osc.stop(ctx.currentTime + 2.6)
     }
     this.combatLayers = []
+  }
+
+  // ── Boss music ────────────────────────────────────────────────────────────
+
+  private startBoss(phase: 1 | 2 | 3): void {
+    const ctx  = this.ctx
+    const dest = this.dest
+    if (!ctx || !dest) return
+
+    this.bossActive = true
+    this.stopBoss()   // clear previous layers
+
+    const t = ctx.currentTime
+
+    // Core drone — distorted sawtooth, pitch rises each phase
+    const baseFreq = phase === 1 ? 55 : phase === 2 ? 82 : 110
+    const osc1 = ctx.createOscillator(); osc1.type = 'sawtooth'; osc1.frequency.value = baseFreq
+    const lp1  = ctx.createBiquadFilter(); lp1.type = 'lowpass'; lp1.frequency.value = 800 + phase * 200
+    const g1   = ctx.createGain(); g1.gain.value = 0
+    g1.gain.linearRampToValueAtTime(0.025, t + 2)
+    osc1.connect(lp1); lp1.connect(g1); g1.connect(dest); osc1.start(t)
+    this.bossLayers.push({ osc: osc1, gain: g1 })
+
+    // Fifth interval tension note
+    const osc2 = ctx.createOscillator(); osc2.type = 'sine'
+    osc2.frequency.value = baseFreq * 1.5
+    const g2 = ctx.createGain(); g2.gain.value = 0
+    g2.gain.linearRampToValueAtTime(0.018, t + 1.5)
+    osc2.connect(g2); g2.connect(dest); osc2.start(t)
+    this.bossLayers.push({ osc: osc2, gain: g2 })
+
+    // Phase 3: add harsh tritone (devil's interval)
+    if (phase === 3) {
+      const osc3 = ctx.createOscillator(); osc3.type = 'sawtooth'
+      osc3.frequency.value = baseFreq * Math.pow(2, 6/12)   // tritone
+      const dist3 = ctx.createWaveShaper()
+      const curve = new Float32Array(256)
+      for (let i = 0; i < 256; i++) {
+        const x = (i * 2) / 256 - 1
+        curve[i] = (Math.PI + 400) * x / (Math.PI + 400 * Math.abs(x))
+      }
+      dist3.curve = curve
+      const g3 = ctx.createGain(); g3.gain.value = 0
+      g3.gain.linearRampToValueAtTime(0.012, t + 1)
+      osc3.connect(dist3); dist3.connect(g3); g3.connect(dest); osc3.start(t)
+      this.bossLayers.push({ osc: osc3, gain: g3 })
+    }
+
+    // Rhythmic pulse — frequency doubles each phase (2/4/8 Hz)
+    const pulseHz  = phase === 1 ? 500 : phase === 2 ? 250 : 125   // ms interval
+    const pulseDmg = phase === 1 ? 0.13 : phase === 2 ? 0.18 : 0.24
+    const pulseFreq = phase === 1 ? 55 : 82
+
+    this.bossPulseId = setInterval(() => {
+      if (!this.ctx || !this.bossActive) return
+      const tp  = this.ctx.currentTime
+      const osc = this.ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = pulseFreq
+      const g   = this.ctx.createGain()
+      g.gain.setValueAtTime(0.0, tp)
+      g.gain.linearRampToValueAtTime(pulseDmg, tp + 0.012)
+      g.gain.exponentialRampToValueAtTime(0.001, tp + 0.18)
+      osc.connect(g); g.connect(dest); osc.start(tp); osc.stop(tp + 0.2)
+    }, pulseHz)
+  }
+
+  private stopBoss(): void {
+    if (this.bossPulseId !== null) { clearInterval(this.bossPulseId); this.bossPulseId = null }
+    const ctx = this.ctx
+    if (!ctx) return
+    for (const l of this.bossLayers) {
+      l.gain.gain.setValueAtTime(l.gain.gain.value, ctx.currentTime)
+      l.gain.gain.linearRampToValueAtTime(0, ctx.currentTime + 2)
+      l.osc.stop(ctx.currentTime + 2.2)
+    }
+    this.bossLayers  = []
+    this.bossActive  = false
   }
 
   // ── Transitions ───────────────────────────────────────────────────────────

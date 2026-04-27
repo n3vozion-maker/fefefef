@@ -13,10 +13,11 @@ export const DEFAULT_MISSIONS: MissionData[] = [
   {
     id: 'mission_2',
     title: 'Ghost Town',
-    description: 'The Northern Ruins hold vital intelligence. Find the bunker entrance and secure the area.',
+    description: 'The Northern Ruins hold vital intelligence. Find the bunker entrance and eliminate the Wraith.',
     objectives: [
-      { id: 'reach_village_n',        description: 'Reach the Northern Ruins',    status: 'inactive', optional: false },
-      { id: 'reach_bunker_a',         description: 'Locate Bunker Complex Alpha', status: 'inactive', optional: false },
+      { id: 'reach_village_n',          description: 'Reach the Northern Ruins',    status: 'inactive', optional: false },
+      { id: 'reach_bunker_a',           description: 'Locate Bunker Complex Alpha', status: 'inactive', optional: false },
+      { id: 'eliminate_boss_wraith',    description: 'Eliminate The Wraith',        status: 'inactive', optional: false },
     ],
   },
   {
@@ -31,20 +32,22 @@ export const DEFAULT_MISSIONS: MissionData[] = [
   {
     id: 'mission_4',
     title: 'Dead Drop',
-    description: 'Three dead drops marked across the map. Reach all of them before enemy patrols move in.',
+    description: 'Secure the three dead drops, then eliminate Phantom-Zero before he wipes the intel.',
     objectives: [
-      { id: 'reach_crash_d',          description: 'Secure Crash Site Delta',     status: 'inactive', optional: false },
-      { id: 'reach_outpost_f',        description: 'Secure Outpost Foxtrot',      status: 'inactive', optional: false },
-      { id: 'reach_bunker_cmd',       description: 'Reach Command Bunker',        status: 'inactive', optional: false },
+      { id: 'reach_crash_d',            description: 'Secure Crash Site Delta',     status: 'inactive', optional: false },
+      { id: 'reach_outpost_f',          description: 'Secure Outpost Foxtrot',      status: 'inactive', optional: false },
+      { id: 'reach_bunker_cmd',         description: 'Reach Command Bunker',        status: 'inactive', optional: false },
+      { id: 'eliminate_boss_phantom',   description: 'Eliminate Phantom-Zero',      status: 'inactive', optional: false },
     ],
   },
   {
     id: 'mission_5',
     title: 'Deep Facility',
-    description: 'The deep facility to the south-west holds something dangerous. Investigate.',
+    description: 'The deep facility holds something dangerous. Reach it and destroy General Rex.',
     objectives: [
-      { id: 'reach_bunker_deep',      description: 'Reach the Deep Facility',     status: 'inactive', optional: false },
-      { id: 'reach_outpost_g',        description: 'Clear Outpost Golf',          status: 'inactive', optional: true  },
+      { id: 'reach_bunker_deep',        description: 'Reach the Deep Facility',     status: 'inactive', optional: false },
+      { id: 'reach_outpost_g',          description: 'Clear Outpost Golf',          status: 'inactive', optional: true  },
+      { id: 'eliminate_boss_rex',       description: 'Destroy General Rex',         status: 'inactive', optional: false },
     ],
   },
 ]

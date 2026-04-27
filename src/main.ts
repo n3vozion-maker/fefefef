@@ -19,8 +19,11 @@ import { CombatSystem }       from './combat/CombatSystem'
 import { ExplosionSystem }    from './combat/ExplosionSystem'
 import { GrenadeSystem }      from './combat/GrenadeSystem'
 import { AISystem }           from './ai/AISystem'
-import { BossAlpha }          from './ai/bosses/BossAlpha'
-import { BossHeavy }          from './ai/bosses/BossHeavy'
+import { BossVoss }           from './ai/bosses/BossVoss'
+import { BossWraith }         from './ai/bosses/BossWraith'
+import { BossIron7 }          from './ai/bosses/BossIron7'
+import { BossPhantom }        from './ai/bosses/BossPhantom'
+import { BossRex }            from './ai/bosses/BossRex'
 import { FirearmWeapon }      from './weapons/FirearmWeapon'
 import { WeaponManager }      from './weapons/WeaponManager'
 import { Viewmodel }          from './weapons/Viewmodel'
@@ -43,6 +46,9 @@ import { Minimap }                from './hud/Minimap'
 import { VictoryScreen }         from './hud/VictoryScreen'
 import { ConfettiSystem }        from './effects/ConfettiSystem'
 import { FlagWeapon }            from './weapons/FlagWeapon'
+import { BloodSystem }           from './effects/BloodSystem'
+import { TitleScreen }           from './hud/TitleScreen'
+import { BossHealthBar }         from './hud/BossHealthBar'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -79,9 +85,14 @@ const victoryScreen  = new VictoryScreen()
 void confetti   // listeners registered in constructor
 void victoryScreen
 
-// Bosses (placed at their respective POI positions)
-const bossAlpha   = new BossAlpha( 600, -400, physics)
-const bossHeavy   = new BossHeavy(-700,  800, physics)
+// ── Bosses — one per mission ──────────────────────────────────────────────────
+const bossVoss    = new BossVoss   ( 600, -400, physics)   // mission_1 Firebase Alpha
+const bossWraith  = new BossWraith ( 200,-1180, physics)   // mission_2 Northern Ruins
+const bossIron7   = new BossIron7  (-680,  820, physics)   // mission_3 Firebase Bravo
+const bossPhantom = new BossPhantom( 750,  420, physics)   // mission_4 Dead Drop zone
+const bossRex     = new BossRex    (-850, -700, physics)   // mission_5 Deep Facility
+
+const bossHealthBar = new BossHealthBar()
 
 // Register services
 ServiceLocator.register('renderer',   renderer)
@@ -180,16 +191,21 @@ scene.add(hemiLight)
 
 const dayNight = new DayNightSystem(sun, ambientLight, hemiLight, scene, scene.fog as THREE.FogExp2)
 
-// Boss meshes
-const mkBossMesh = (color: number, scale: number): THREE.Mesh => {
-  const m = new THREE.Mesh(
-    new THREE.CapsuleGeometry(0.7, 2.0, 6, 8),
-    new THREE.MeshStandardMaterial({ color, roughness: 0.6 }),
-  )
-  m.scale.setScalar(scale); m.castShadow = true; return m
+// ── Boss meshes ───────────────────────────────────────────────────────────────
+const allBosses = [bossVoss, bossWraith, bossIron7, bossPhantom, bossRex] as const
+for (const boss of allBosses) {
+  const mesh = boss.buildMesh()
+  boss.mesh  = mesh
+  scene.add(mesh)
 }
-bossAlpha.mesh = mkBossMesh(0x2a3a5a, 1.2); scene.add(bossAlpha.mesh)
-bossHeavy.mesh = mkBossMesh(0x3a2a1a, 1.6); scene.add(bossHeavy.mesh)
+
+// Blood + effects systems
+const blood  = new BloodSystem(scene)
+void blood
+
+// Title screen — gates gameplay until ENGAGE is pressed
+const titleScreen = new TitleScreen()
+void bossHealthBar
 
 // ── Vehicle spawns ────────────────────────────────────────────────────────────
 
@@ -313,9 +329,23 @@ let firing = false
 bus.on<string>('actionDown', (a) => { if (a === 'fire') firing = true })
 bus.on<string>('actionUp',   (a) => { if (a === 'fire') firing = false })
 
+// ── Boss reinforcement → spawn AI agents near boss ────────────────────────────
+bus.on<{ origin: THREE.Vector3; count: number }>('bossReinforce', (e) => {
+  for (let i = 0; i < e.count; i++) {
+    const angle = Math.random() * Math.PI * 2
+    const r     = 8 + Math.random() * 12
+    ammoPickups.spawn(
+      e.origin.x + Math.cos(angle) * r,
+      e.origin.y,
+      e.origin.z + Math.sin(angle) * r,
+      'rifle',
+    )
+  }
+})
+
 bus.on<number>('fixedUpdate', (dt) => {
-  // Gate everything while paused, dead, or menus open
-  if (pauseMenu.paused || gameOver.isVisible()) return
+  // Gate everything while paused, dead, title screen showing, or menus open
+  if (pauseMenu.paused || gameOver.isVisible() || !titleScreen.isDismissed()) return
 
   const locked = input.isPointerLocked()
   const menuOpen = missionMenu.isOpen() || loadoutMenu.isOpen()
@@ -363,8 +393,8 @@ bus.on<number>('fixedUpdate', (dt) => {
 
   world.update(playerPos, dt)
   ai.update(dt, playerPos)
-  bossAlpha.update(dt, playerPos)
-  bossHeavy.update(dt, playerPos)
+  for (const boss of allBosses) boss.update(dt, playerPos)
+  blood.update(dt)
   minimap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions(), null)
 
   // Day/night, ammo, vehicles, endgame
