@@ -29,6 +29,9 @@ export class HUD {
   private toastContainer: HTMLElement
   private toasts: Array<{ el: HTMLElement; timer: number }> = []
 
+  // Interaction prompt ("Press E to …")
+  private interactPromptEl: HTMLElement
+
   constructor() {
     const root = document.createElement('div')
     Object.assign(root.style, {
@@ -171,6 +174,25 @@ export class HUD {
       background: '#e040fb', transition: 'background 0.15s, width 0.1s',
     })
 
+    // ── Interaction prompt (bottom-centre, above stamina bar) ────────────────
+    this.interactPromptEl = this.el(root, {
+      position:      'absolute',
+      bottom:        '68px',
+      left:          '50%',
+      transform:     'translateX(-50%)',
+      fontFamily:    'monospace',
+      fontSize:      '11px',
+      letterSpacing: '0.1em',
+      color:         'rgba(255,255,255,0.75)',
+      background:    'rgba(0,0,0,0.55)',
+      padding:       '4px 16px',
+      border:        '1px solid rgba(255,255,255,0.18)',
+      pointerEvents: 'none',
+      display:       'none',
+      whiteSpace:    'nowrap',
+      userSelect:    'none',
+    })
+
     // ── Toast notification area (below boss health bar) ───────────────────────
     this.toastContainer = this.el(root, {
       position:      'absolute',
@@ -296,6 +318,16 @@ export class HUD {
       this.hpCritPulse = 0
       this.vignetteEl.style.background =
         'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.72) 100%)'
+    }
+  }
+
+  /** Show / hide the "Press E to …" prompt. Pass null to hide. */
+  updateInteractPrompt(text: string | null): void {
+    if (text) {
+      this.interactPromptEl.textContent  = text
+      this.interactPromptEl.style.display = 'block'
+    } else {
+      this.interactPromptEl.style.display = 'none'
     }
   }
 

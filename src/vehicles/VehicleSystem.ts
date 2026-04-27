@@ -146,6 +146,15 @@ export class VehicleSystem {
   get isOccupied(): boolean { return this.active !== null }
   get activeVehicle(): VehicleBase | null { return this.active }
 
+  getNearestDistance(playerPos: THREE.Vector3): number {
+    let best = Infinity
+    for (const v of this.vehicles) {
+      const d = v.getPosition().distanceTo(playerPos)
+      if (d < best) best = d
+    }
+    return best
+  }
+
   getActivePosition(): THREE.Vector3 | null {
     return this.active ? this.active.getPosition() : null
   }

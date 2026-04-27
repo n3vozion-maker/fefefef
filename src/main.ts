@@ -55,6 +55,7 @@ import { ChestSystem }           from './world/ChestSystem'
 import { WaypointHUD, MISSION_POI, POI_REACH_RADIUS } from './hud/WaypointHUD'
 import { SideQuestPanel }        from './hud/SideQuestPanel'
 import { buildAllStructures }    from './world/WorldStructures'
+import { FullscreenMap }         from './hud/FullscreenMap'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -86,6 +87,7 @@ const consumables    = new ConsumableInventory()
 const vehiclePickups = new VehiclePickupSystem(renderer.scene)
 const endgame        = new EndgameSystem(unlocks)
 const minimap        = new Minimap()
+const fullMap        = new FullscreenMap()
 const confetti       = new ConfettiSystem()
 const victoryScreen  = new VictoryScreen()
 void confetti   // listeners registered in constructor
@@ -240,6 +242,7 @@ const sqPanel     = new SideQuestPanel()
 for (const q of sqSystem.quests) {
   chests.spawn(q.id, q.chestPos)
 }
+fullMap.setSQSystem(sqSystem)
 
 // Show the first quest panel straight away
 sqPanel.show(sqSystem.quests[0]!.title, sqSystem.quests[0]!.objectives[0]!.description)
@@ -302,13 +305,20 @@ Object.assign(lockPrompt.style, {
 lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C slide · Space jump/vault · Ctrl dash · Q parry · G grenade · 1/2/3 weapons · Tab loadout · M missions · J side quests · E enter vehicle / repair · F exit · ESC pause</span>'
 document.body.appendChild(lockPrompt)
 
-// Dev label
+// Dev label (hidden by default — toggle with F3)
 const devLabel = document.createElement('div')
 Object.assign(devLabel.style, {
   position: 'fixed', top: '10px', left: '12px',
-  color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace', fontSize: '11px', pointerEvents: 'none',
+  color: 'rgba(255,255,255,0.4)', fontFamily: 'monospace', fontSize: '11px',
+  pointerEvents: 'none', display: 'none',
 })
 document.body.appendChild(devLabel)
+document.addEventListener('keydown', (e) => {
+  if (e.code === 'F3') {
+    e.preventDefault()
+    devLabel.style.display = devLabel.style.display === 'none' ? 'block' : 'none'
+  }
+})
 
 // ── Explosion → blast damage to nearby agents ─────────────────────────────────
 
@@ -474,8 +484,8 @@ bus.on('sqObjectiveUpdated', () => {
 })
 
 bus.on<number>('fixedUpdate', (dt) => {
-  // Gate everything while paused, dead, title screen showing, or menus open
-  if (pauseMenu.paused || gameOver.isVisible() || !titleScreen.isDismissed()) return
+  // Gate everything while paused, dead, title screen showing, menus open, or map open
+  if (pauseMenu.paused || gameOver.isVisible() || !titleScreen.isDismissed() || fullMap.isOpen()) return
 
   const locked = input.isPointerLocked()
   const menuOpen = missionMenu.isOpen() || loadoutMenu.isOpen()
@@ -526,10 +536,12 @@ bus.on<number>('fixedUpdate', (dt) => {
   for (const boss of allBosses) boss.update(dt, playerPos)
   blood.update(dt)
 
-  // ── Chest interaction prompt ──────────────────────────────────────────────
+  // ── Chest / vehicle interaction prompt ───────────────────────────────────
   const chestPrompt = chests.update(dt, playerPos)
-  // (TODO: display chestPrompt in HUD interact label if desired)
-  void chestPrompt
+  const nearVehicle = !vehicleSys.isOccupied && vehicleSys.getNearestDistance(playerPos) < 4.5
+  const interactText = chestPrompt
+    ?? (nearVehicle ? '[E]  Enter vehicle' : null)
+  hud.updateInteractPrompt(interactText)
 
   // ── Side quest tick ───────────────────────────────────────────────────────
   sqSystem.tickPlayerPos(playerPos)
@@ -569,6 +581,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   waypointHUD.tick(playerPos, playerCam.getYaw(), wpTarget, wpLabel)
 
   minimap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions(), null)
+  fullMap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions())
 
   // Day/night, ammo, vehicles, endgame
   dayNight.update(dt)
