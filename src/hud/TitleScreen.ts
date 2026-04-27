@@ -1,5 +1,6 @@
 import { bus }                                  from '../core/EventBus'
 import { DifficultySystem, DIFFICULTY_CONFIGS, type Difficulty } from '../core/DifficultySystem'
+import { SaveSystem }                            from '../persistence/SaveSystem'
 
 // ── TitleScreen ───────────────────────────────────────────────────────────────
 // Shown at startup. Postal × Ultrakill aesthetic: black, red, aggressive type.
@@ -16,10 +17,14 @@ export class TitleScreen {
 
   isDismissed(): boolean { return this._dismissed }
 
-  private dismiss(): void {
+  private dismiss(newGame = false): void {
     if (this._dismissed) return
     this._dismissed = true
     DifficultySystem.set(this.difficulty)
+    if (newGame) {
+      SaveSystem.delete()
+      bus.emit('newGameStarted', {})
+    }
     this.overlay.style.transition = 'opacity 0.45s'
     this.overlay.style.opacity    = '0'
     setTimeout(() => {
@@ -160,12 +165,54 @@ export class TitleScreen {
     }
     updateDiff('normal')   // default selection
 
-    // ENGAGE button
-    const engage = document.createElement('button')
-    engage.className   = 'ts-play'
-    engage.textContent = 'ENGAGE'
-    engage.addEventListener('click', () => this.dismiss())
-    el.appendChild(engage)
+    // ── Play buttons — Continue / New Game (or just ENGAGE if no save) ──────
+    const hasSave = SaveSystem.load() !== null
+    const btnRow  = document.createElement('div')
+    Object.assign(btnRow.style, { display: 'flex', gap: '8px', justifyContent: 'center' })
+
+    if (hasSave) {
+      const cont = document.createElement('button')
+      cont.className   = 'ts-play'
+      cont.textContent = 'CONTINUE'
+      cont.style.background = '#1a3a1a'
+      cont.style.borderColor = '#4caf50'
+      cont.style.color = '#4caf50'
+      cont.addEventListener('mouseenter', () => { cont.style.background = '#2e5c2e' })
+      cont.addEventListener('mouseleave', () => { cont.style.background = '#1a3a1a' })
+      cont.addEventListener('click', () => this.dismiss(false))
+      btnRow.appendChild(cont)
+
+      const ng = document.createElement('button')
+      ng.className   = 'ts-play'
+      ng.textContent = 'NEW GAME'
+      ng.style.fontSize = '13px'
+      ng.style.padding  = '14px 32px'
+      ng.style.background = '#1a0000'
+      ng.style.borderColor = 'rgba(255,80,80,0.5)'
+      ng.style.color = 'rgba(255,100,100,0.8)'
+      ng.addEventListener('mouseenter', () => {
+        ng.style.background = '#3a0000'
+        ng.style.color = '#ff5555'
+      })
+      ng.addEventListener('mouseleave', () => {
+        ng.style.background = '#1a0000'
+        ng.style.color = 'rgba(255,100,100,0.8)'
+      })
+      ng.addEventListener('click', () => {
+        if (confirm('Start a new game? Your current save will be erased.')) {
+          this.dismiss(true)
+        }
+      })
+      btnRow.appendChild(ng)
+    } else {
+      const engage = document.createElement('button')
+      engage.className   = 'ts-play'
+      engage.textContent = 'ENGAGE'
+      engage.addEventListener('click', () => this.dismiss(false))
+      btnRow.appendChild(engage)
+    }
+
+    el.appendChild(btnRow)
 
     // Hints
     const hint = document.createElement('div')

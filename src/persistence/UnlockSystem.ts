@@ -3,14 +3,19 @@ import { bus } from '../core/EventBus'
 // ── Weapon unlock definitions ─────────────────────────────────────────────────
 
 export type WeaponId =
-  | 'rifle_m4a1'     // default — always unlocked
-  | 'pistol_m9'      // default — always unlocked
-  | 'sniper_awp'     // mission_1 complete
-  | 'shotgun_spas'   // mission_2 complete
-  | 'rifle_ak47'     // mission_3 complete
-  | 'smg_mp5'        // mission_4 complete
-  | 'sniper_barrett' // mission_5 complete
-  | 'flag_victory'   // all 5 missions complete
+  | 'rifle_m4a1'       // default — always unlocked
+  | 'pistol_m9'        // default — always unlocked
+  | 'sniper_awp'       // mission_1 complete
+  | 'shotgun_spas'     // mission_2 complete
+  | 'rifle_ak47'       // mission_3 complete
+  | 'smg_mp5'          // mission_4 complete
+  | 'sniper_barrett'   // mission_5 complete
+  | 'flag_victory'     // all 5 missions complete
+  | 'shotgun_aa12'     // side quest 1
+  | 'smg_p90'          // side quest 2
+  | 'sniper_dragunov'  // side quest 3
+  | 'rifle_scar'       // side quest 4
+  | 'lmg_m249'         // side quest 5
 
 const MISSION_REWARDS: Record<string, WeaponId> = {
   mission_1: 'sniper_awp',

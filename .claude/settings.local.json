@@ -18,7 +18,8 @@
       "Bash(del \"C:\\\\Users\\\\n3voz\\\\projects\\\\pj1\\\\src\\\\ai\\\\bosses\\\\BossAlpha.ts\")",
       "Bash(del \"C:\\\\Users\\\\n3voz\\\\projects\\\\pj1\\\\src\\\\ai\\\\bosses\\\\BossHeavy.ts\")",
       "Bash(npm install *)",
-      "Bash(npx vite *)"
+      "Bash(npx vite *)",
+      "Bash(git rm *)"
     ]
   }
 }

@@ -50,6 +50,10 @@ import { BloodSystem }           from './effects/BloodSystem'
 import { TitleScreen }           from './hud/TitleScreen'
 import { BossHealthBar }         from './hud/BossHealthBar'
 import { DifficultySystem }      from './core/DifficultySystem'
+import { SideQuestSystem }       from './missions/SideQuestSystem'
+import { ChestSystem }           from './world/ChestSystem'
+import { WaypointHUD, MISSION_POI, POI_REACH_RADIUS } from './hud/WaypointHUD'
+import { SideQuestPanel }        from './hud/SideQuestPanel'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -224,6 +228,20 @@ for (const boss of allBosses) {
 // Blood + effects systems
 const blood  = new BloodSystem(scene)
 void blood
+
+// Side quests + world chests + waypoints
+const sqSystem    = new SideQuestSystem()
+const chests      = new ChestSystem(scene)
+const waypointHUD = new WaypointHUD()
+const sqPanel     = new SideQuestPanel()
+
+// Spawn a chest for every side quest
+for (const q of sqSystem.quests) {
+  chests.spawn(q.id, q.chestPos)
+}
+
+// Show the first quest panel straight away
+sqPanel.show(sqSystem.quests[0]!.title, sqSystem.quests[0]!.objectives[0]!.description)
 
 // Title screen — gates gameplay until ENGAGE is pressed
 const titleScreen = new TitleScreen()
@@ -400,6 +418,15 @@ bus.on<{ origin: THREE.Vector3; count: number }>('bossReinforce', (e) => {
   ai.spawnReinforcement(e.origin.x, e.origin.z, e.count)
 })
 
+// ── Side quest panel updates ───────────────────────────────────────────────────
+bus.on<{ id: string; title: string }>('sqStarted', (e) => {
+  const q = sqSystem.quests.find(x => x.id === e.id)
+  if (q) sqPanel.show(q.title, q.objectives[0]?.description ?? '')
+})
+bus.on('sqObjectiveUpdated', () => {
+  sqPanel.setObjective(sqSystem.getCurrentObjDesc())
+})
+
 bus.on<number>('fixedUpdate', (dt) => {
   // Gate everything while paused, dead, title screen showing, or menus open
   if (pauseMenu.paused || gameOver.isVisible() || !titleScreen.isDismissed()) return
@@ -452,6 +479,49 @@ bus.on<number>('fixedUpdate', (dt) => {
   ai.update(dt, playerPos)
   for (const boss of allBosses) boss.update(dt, playerPos)
   blood.update(dt)
+
+  // ── Chest interaction prompt ──────────────────────────────────────────────
+  const chestPrompt = chests.update(dt, playerPos)
+  // (TODO: display chestPrompt in HUD interact label if desired)
+  void chestPrompt
+
+  // ── Side quest tick ───────────────────────────────────────────────────────
+  sqSystem.tickPlayerPos(playerPos)
+  if (sqPanel.isVisible()) sqPanel.setObjective(sqSystem.getCurrentObjDesc())
+
+  // ── Main mission POI proximity detection ──────────────────────────────────
+  const activeMission = missions.getActive()
+  if (activeMission) {
+    for (const obj of activeMission.objectives) {
+      if (obj.status !== 'active') continue
+      const poi = MISSION_POI[obj.id]
+      if (!poi) continue
+      const dx = poi.x - playerPos.x
+      const dz = poi.z - playerPos.z
+      if (dx * dx + dz * dz < POI_REACH_RADIUS * POI_REACH_RADIUS) {
+        bus.emit('poiDiscovered', { id: obj.id })
+      }
+    }
+  }
+
+  // ── Waypoint HUD ──────────────────────────────────────────────────────────
+  // Priority: active main-mission reach objective, then side quest
+  let wpTarget: THREE.Vector3 | null = null
+  let wpLabel  = ''
+
+  if (activeMission) {
+    for (const obj of activeMission.objectives) {
+      if (obj.status !== 'active') continue
+      const poi = MISSION_POI[obj.id]
+      if (poi) { wpTarget = poi; wpLabel = obj.description; break }
+    }
+  }
+  if (!wpTarget) {
+    wpTarget = sqSystem.getWaypoint()
+    wpLabel  = sqSystem.getCurrentObjDesc()
+  }
+  waypointHUD.tick(playerPos, playerCam.getYaw(), wpTarget, wpLabel)
+
   minimap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions(), null)
 
   // Day/night, ammo, vehicles, endgame
@@ -514,9 +584,11 @@ bus.on<string>('actionDown', (a) => {
   }
 
   // Vehicle enter (E) / exit (F)
-  if (a === 'interact' && !vehicleSys.isOccupied) {
-    const pp = player.body.position
-    vehicleSys.tryEnter(new THREE.Vector3(pp.x, pp.y, pp.z))
+  if (a === 'interact') {
+    const pp  = player.body.position
+    const pos = new THREE.Vector3(pp.x, pp.y, pp.z)
+    chests.tryInteract(pos)
+    if (!vehicleSys.isOccupied) vehicleSys.tryEnter(pos)
   }
   if (a === 'vehicleExit' && vehicleSys.isOccupied) {
     vehicleSys.tryExit(player.body)
