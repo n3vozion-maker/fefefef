@@ -1,4 +1,5 @@
 import { Settings } from '../core/Settings'
+import { bus }      from '../core/EventBus'
 
 export class PauseMenu {
   private overlay:  HTMLElement
@@ -36,11 +37,7 @@ export class PauseMenu {
     panel.appendChild(this.label('Master Volume'))
     panel.appendChild(this.slider(0, 1, Settings.masterVolume, (v) => {
       Settings.masterVolume = v
-      try {
-        // Howler.volume is loaded lazily
-        ;(window as unknown as Record<string,unknown>)['Howler'] &&
-          (window as unknown as { Howler: { volume(v:number):void } }).Howler.volume(v)
-      } catch { /* */ }
+      bus.emit('volumeChanged', v)
     }))
 
     panel.appendChild(this.divider())

@@ -14,7 +14,11 @@
       "Bash(npx tsc *)",
       "Bash(node_modules\\\\.bin\\\\tsc --noEmit)",
       "Read(//mnt/c/Users/n3voz/projects/**)",
-      "Bash(./node_modules/.bin/tsc --noEmit)"
+      "Bash(./node_modules/.bin/tsc --noEmit)",
+      "Bash(del \"C:\\\\Users\\\\n3voz\\\\projects\\\\pj1\\\\src\\\\ai\\\\bosses\\\\BossAlpha.ts\")",
+      "Bash(del \"C:\\\\Users\\\\n3voz\\\\projects\\\\pj1\\\\src\\\\ai\\\\bosses\\\\BossHeavy.ts\")",
+      "Bash(npm install *)",
+      "Bash(npx vite *)"
     ]
   }
 }

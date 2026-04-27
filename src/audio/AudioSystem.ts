@@ -278,6 +278,22 @@ const SOUNDS: Record<string, SoundFn> = {
     }
   },
 
+  footstep(ctx, dest) {
+    const t  = ctx.currentTime
+    // Muffled thud — low noise burst
+    const ns = noise(ctx, 0.04)
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 480
+    const g  = ctx.createGain()
+    g.gain.setValueAtTime(0.09, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.035)
+    ns.connect(lp); lp.connect(g); g.connect(dest); ns.start(t)
+    // Subtle sub-thump
+    const osc = ctx.createOscillator(); osc.type = 'sine'
+    osc.frequency.setValueAtTime(110, t); osc.frequency.exponentialRampToValueAtTime(38, t + 0.045)
+    const og = ctx.createGain()
+    og.gain.setValueAtTime(0.06, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.045)
+    osc.connect(og); og.connect(dest); osc.start(t); osc.stop(t + 0.05)
+  },
+
   slide(ctx, dest) {
     const t  = ctx.currentTime
     const ns = noise(ctx, 0.35)
@@ -296,6 +312,14 @@ export class AudioSystem {
   private ctx:        AudioContext | null = null
   private masterGain: GainNode    | null = null
   readonly music:     MusicManager
+
+  // Vehicle engine continuous sound
+  private engineOsc:    OscillatorNode | null = null
+  private engineGain:   GainNode       | null = null
+  private engineActive  = false
+
+  // Footstep cadence
+  private footstepTimer = 0
 
   constructor() {
     this.music = new MusicManager(this)
@@ -340,6 +364,83 @@ export class AudioSystem {
     this.music.update()
   }
 
+  /** Call every frame while player is on foot. Plays footstep thumps at cadence. */
+  tickFootsteps(moving: boolean, grounded: boolean, sprinting: boolean, dt: number): void {
+    if (!moving || !grounded) { this.footstepTimer = 0; return }
+    const rate = sprinting ? 3.4 : 2.1
+    this.footstepTimer -= dt
+    if (this.footstepTimer <= 0) {
+      this.footstepTimer = 1 / rate
+      this.play('footstep')
+    }
+  }
+
+  /** Smoothly ramp engine oscillator frequency to match vehicle speed (m/s). */
+  updateEngineSpeed(speed: number): void {
+    if (!this.engineOsc || !this.ctx) return
+    // idle ~70 Hz, full speed ~160 Hz
+    const target = 70 + Math.min(speed, 28) * 3.2
+    this.engineOsc.frequency.setTargetAtTime(target, this.ctx.currentTime, 0.12)
+    // volume up slightly with speed
+    if (this.engineGain) {
+      const vol = 0.07 + Math.min(speed, 28) * 0.001
+      this.engineGain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.15)
+    }
+  }
+
+  /** Set master volume 0-1. */
+  setMasterVolume(v: number): void {
+    if (this.masterGain) this.masterGain.gain.value = v * 0.75
+  }
+
+  // ── Vehicle engine ────────────────────────────────────────────────────────
+
+  private startEngine(): void {
+    if (this.engineActive) return
+    this.engineActive = true
+    const ctx  = this.ensureCtx()
+    const dest = this.masterGain ?? ctx.destination
+
+    const osc = ctx.createOscillator()
+    osc.type = 'sawtooth'
+    osc.frequency.value = 72
+
+    // LFO for idle rumble
+    const lfo = ctx.createOscillator()
+    lfo.frequency.value = 7
+    const lfoGain = ctx.createGain(); lfoGain.gain.value = 4
+    lfo.connect(lfoGain); lfoGain.connect(osc.frequency)
+    lfo.start()
+
+    const lp  = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 280
+    const g   = ctx.createGain(); g.gain.value = 0.001
+
+    osc.connect(lp); lp.connect(g); g.connect(dest)
+    osc.start()
+
+    // Fade in
+    g.gain.setValueAtTime(0.001, ctx.currentTime)
+    g.gain.linearRampToValueAtTime(0.08, ctx.currentTime + 0.4)
+
+    this.engineOsc  = osc
+    this.engineGain = g
+  }
+
+  private stopEngine(): void {
+    if (!this.engineActive) return
+    this.engineActive = false
+    const ctx = this.ctx
+    if (!ctx || !this.engineGain || !this.engineOsc) return
+    const g   = this.engineGain
+    const osc = this.engineOsc
+    this.engineOsc  = null
+    this.engineGain = null
+    const t = ctx.currentTime
+    g.gain.setValueAtTime(g.gain.value, t)
+    g.gain.exponentialRampToValueAtTime(0.001, t + 0.35)
+    setTimeout(() => { try { osc.stop() } catch { /* */ } }, 400)
+  }
+
   // ── Event bindings ────────────────────────────────────────────────────────
 
   private bindEvents(): void {
@@ -350,8 +451,11 @@ export class AudioSystem {
     bus.on('parryStarted',   () => this.play('parry'))
     bus.on('reloadStart',    () => this.play('reload'))
     bus.on('ammoPickup',     () => this.play('pickup'))
-    bus.on('vehicleEntered', () => this.play('pickup'))
+    bus.on('vehicleEntered', () => { this.play('pickup'); this.startEngine() })
+    bus.on('vehicleExited',  () => this.stopEngine())
+    bus.on('vehicleDied',    () => this.stopEngine())
     bus.on('victoryAchieved',() => this.play('victory_fanfare'))
+    bus.on<number>('volumeChanged', (v) => this.setMasterVolume(v))
 
     bus.on<{ damage: number }>('damageEvent', () => this.play('hit_flesh'))
 

@@ -25,6 +25,10 @@ export class HUD {
   private killSplashTimer = 0
   private hpCritPulse     = 0
 
+  // HUD toast notifications
+  private toastContainer: HTMLElement
+  private toasts: Array<{ el: HTMLElement; timer: number }> = []
+
   constructor() {
     const root = document.createElement('div')
     Object.assign(root.style, {
@@ -167,9 +171,25 @@ export class HUD {
       background: '#e040fb', transition: 'background 0.15s, width 0.1s',
     })
 
+    // ── Toast notification area (below boss health bar) ───────────────────────
+    this.toastContainer = this.el(root, {
+      position:      'absolute',
+      top:           '14%',
+      left:          '50%',
+      transform:     'translateX(-50%)',
+      display:       'flex',
+      flexDirection: 'column',
+      alignItems:    'center',
+      gap:           '6px',
+      pointerEvents: 'none',
+      zIndex:        '20',
+    })
+
     // ── Events ────────────────────────────────────────────────────────────────
 
     bus.on('damageEvent', () => this.flashHitmarker())
+
+    bus.on<string>('hudNotify', (msg) => this.showToast(msg))
 
     // Player hit → damage flash
     bus.on<{ damage: number }>('playerHit', ({ damage }) => {
@@ -252,6 +272,19 @@ export class HUD {
       }
     }
 
+    // Toast timers
+    for (let i = this.toasts.length - 1; i >= 0; i--) {
+      const toast = this.toasts[i]!
+      toast.timer -= dt
+      if (toast.timer < 0.5) {
+        toast.el.style.opacity = '0'
+      }
+      if (toast.timer <= 0) {
+        toast.el.remove()
+        this.toasts.splice(i, 1)
+      }
+    }
+
     // Critical HP: pulse red vignette (Ultrakill heartbeat)
     if (hpPct < 25) {
       this.hpCritPulse += dt * 3.5
@@ -264,6 +297,28 @@ export class HUD {
       this.vignetteEl.style.background =
         'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.72) 100%)'
     }
+  }
+
+  showToast(msg: string, duration = 3.2): void {
+    const t = document.createElement('div')
+    Object.assign(t.style, {
+      background:    'rgba(0,0,0,0.72)',
+      color:         '#ffcc00',
+      fontFamily:    'monospace',
+      fontSize:      '11px',
+      fontWeight:    '700',
+      letterSpacing: '0.14em',
+      padding:       '6px 22px',
+      borderLeft:    '2px solid #ffcc00',
+      opacity:       '1',
+      transition:    'opacity 0.5s',
+      whiteSpace:    'nowrap',
+      textTransform: 'uppercase',
+      userSelect:    'none',
+    })
+    t.textContent = msg
+    this.toastContainer.appendChild(t)
+    this.toasts.push({ el: t, timer: duration })
   }
 
   // ── Helpers ───────────────────────────────────────────────────────────────────

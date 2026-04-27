@@ -355,7 +355,8 @@ bus.on<string>('actionDown', (a) => {
 
 // ── Game loop ─────────────────────────────────────────────────────────────────
 
-let firing = false
+let firing       = false
+let prevVehPos: THREE.Vector3 | null = null
 bus.on<string>('actionDown', (a) => { if (a === 'fire') firing = true })
 bus.on<string>('actionUp',   (a) => { if (a === 'fire') firing = false })
 
@@ -394,18 +395,9 @@ bus.on('gameStarted', () => {
   }
 })
 
-// ── Boss reinforcement → spawn AI agents near boss ────────────────────────────
+// ── Boss reinforcement → spawn real infantry agents near boss ─────────────────
 bus.on<{ origin: THREE.Vector3; count: number }>('bossReinforce', (e) => {
-  for (let i = 0; i < e.count; i++) {
-    const angle = Math.random() * Math.PI * 2
-    const r     = 8 + Math.random() * 12
-    ammoPickups.spawn(
-      e.origin.x + Math.cos(angle) * r,
-      e.origin.y,
-      e.origin.z + Math.sin(angle) * r,
-      'rifle',
-    )
-  }
+  ai.spawnReinforcement(e.origin.x, e.origin.z, e.count)
 })
 
 bus.on<number>('fixedUpdate', (dt) => {
@@ -482,6 +474,24 @@ bus.on<number>('fixedUpdate', (dt) => {
     const basePos = player.getCameraBase()
     playerCam.update(dt, basePos, player.isMoving(), player.isSprinting(), player.getState())
   }
+
+  // Vehicle engine pitch
+  const activeVeh = vehicleSys.activeVehicle
+  if (activeVeh && inVehicle) {
+    const curPos = activeVeh.getPosition()
+    if (prevVehPos) {
+      const speed = prevVehPos.distanceTo(curPos) / Math.max(dt, 0.001)
+      audio.updateEngineSpeed(speed)
+    }
+    prevVehPos = curPos.clone()
+  } else {
+    prevVehPos = null
+  }
+
+  // Footstep sounds
+  const grounded = player.getState() !== 'air'
+  audio.tickFootsteps(player.isMoving() && !inVehicle, grounded, player.isSprinting(), dt)
+
   viewmodel.update(dt, weaponMgr.isADS(), w?.getIsReloading() ?? false)
 
   hud.update(w, playerStats, player.stamina, player.tech)

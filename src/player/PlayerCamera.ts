@@ -8,6 +8,7 @@ const FOV_LERP       = 12
 const TILT_SPEED     = 10
 const SLIDE_BOB_AMP  = 0.015
 const RECOIL_RECOVER = 5.5
+const SHAKE_DECAY    = 16
 
 export class PlayerCamera {
   private yaw         = 0
@@ -23,6 +24,10 @@ export class PlayerCamera {
   private recoilPitch = 0
   private recoilYaw   = 0
 
+  // Screen shake
+  private shakeX = 0
+  private shakeY = 0
+
   constructor(private cam: THREE.PerspectiveCamera) {
     this.currentFov = Settings.fov
     this.targetFov  = Settings.fov
@@ -33,6 +38,18 @@ export class PlayerCamera {
       this.isADS     = active
       this.targetFov = active ? Settings.adsFov : Settings.fov
     })
+
+    // Screen shake triggers
+    bus.on('explosion',      () => this.shake(0.22))
+    bus.on('tankCannonFired',() => this.shake(0.18))
+    bus.on('bossPhaseChange',() => this.shake(0.48))
+    bus.on<{ damage: number }>('playerHit', ({ damage }) => this.shake(damage / 160))
+  }
+
+  /** Add a one-shot camera shake. intensity ~0.1 (light) → 0.5 (heavy). */
+  shake(intensity: number): void {
+    this.shakeX += (Math.random() - 0.5) * intensity * 2
+    this.shakeY += (Math.random() - 0.5) * intensity * 2
   }
 
   applyMouseDelta(dx: number, dy: number): void {
@@ -99,7 +116,15 @@ export class PlayerCamera {
       this.bobTime = 0
     }
 
-    this.cam.position.set(basePos.x + bobX, basePos.y + bobY, basePos.z)
+    // Shake decay
+    this.shakeX *= Math.max(0, 1 - SHAKE_DECAY * dt)
+    this.shakeY *= Math.max(0, 1 - SHAKE_DECAY * dt)
+
+    this.cam.position.set(
+      basePos.x + bobX + this.shakeX,
+      basePos.y + bobY + this.shakeY,
+      basePos.z,
+    )
   }
 
   getYaw():   number { return this.yaw }

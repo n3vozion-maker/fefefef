@@ -182,6 +182,20 @@ export class AISystem {
     }
   }
 
+  /** Spawn count infantry agents near world position (x, z) — used by boss reinforcement. */
+  spawnReinforcement(x: number, z: number, count = 2): void {
+    for (let i = 0; i < count; i++) {
+      const ox = x + (Math.random() - 0.5) * 14
+      const oz = z + (Math.random() - 0.5) * 14
+      const agent = new AIAgent(ox, oz, this.physics)
+      const mesh  = makeAgentMesh()
+      mesh.position.set(ox, 1, oz)
+      this.scene.add(mesh)
+      agent.mesh = mesh
+      this.agents.push(agent)
+    }
+  }
+
   /** Exposes all infantry agents (for difficulty HP scaling at game start) */
   getAgents(): AIAgent[] { return this.agents }
 
