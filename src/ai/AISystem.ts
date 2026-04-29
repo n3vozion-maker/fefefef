@@ -1,5 +1,5 @@
 import * as THREE from 'three'
-import { AIAgent }        from './AIAgent'
+import { AIAgent, type EnemyType } from './AIAgent'
 import { SquadManager }   from './SquadManager'
 import { bus }            from '../core/EventBus'
 import type { PhysicsWorld } from '../physics/PhysicsWorld'
@@ -8,13 +8,30 @@ import { EnemyRobot }    from './enemies/EnemyRobot'
 import { EnemyDrone }    from './enemies/EnemyDrone'
 import { EnemyTank }     from './enemies/EnemyTank'
 
-// Shared materials (created once, reused for all soldiers)
-const _matUniform = new THREE.MeshStandardMaterial({ color: 0x3d4a2e, roughness: 0.85, metalness: 0.05 })
-const _matDark    = new THREE.MeshStandardMaterial({ color: 0x1e2612, roughness: 0.9,  metalness: 0.08 })
-const _matHelmet  = new THREE.MeshStandardMaterial({ color: 0x2a3520, roughness: 0.75, metalness: 0.22 })
-const _matGun     = new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.55, metalness: 0.82 })
+// Shared base materials
+const _matGun = new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.55, metalness: 0.82 })
 
-function makeAgentMesh(): THREE.Group {
+// Per-type material sets
+const MATS: Record<EnemyType, { uniform: THREE.MeshStandardMaterial; dark: THREE.MeshStandardMaterial; helmet: THREE.MeshStandardMaterial }> = {
+  standard: {
+    uniform: new THREE.MeshStandardMaterial({ color: 0x3d4a2e, roughness: 0.85, metalness: 0.05 }),
+    dark:    new THREE.MeshStandardMaterial({ color: 0x1e2612, roughness: 0.9,  metalness: 0.08 }),
+    helmet:  new THREE.MeshStandardMaterial({ color: 0x2a3520, roughness: 0.75, metalness: 0.22 }),
+  },
+  scout: {
+    uniform: new THREE.MeshStandardMaterial({ color: 0x4a4a52, roughness: 0.80, metalness: 0.10 }),
+    dark:    new THREE.MeshStandardMaterial({ color: 0x22222a, roughness: 0.9,  metalness: 0.12 }),
+    helmet:  new THREE.MeshStandardMaterial({ color: 0x303038, roughness: 0.70, metalness: 0.28 }),
+  },
+  gunner: {
+    uniform: new THREE.MeshStandardMaterial({ color: 0x2a1e10, roughness: 0.90, metalness: 0.08 }),
+    dark:    new THREE.MeshStandardMaterial({ color: 0x100c06, roughness: 0.95, metalness: 0.15 }),
+    helmet:  new THREE.MeshStandardMaterial({ color: 0x1a1208, roughness: 0.80, metalness: 0.35 }),
+  },
+}
+
+function makeAgentMesh(type: EnemyType = 'standard'): THREE.Group {
+  const { uniform: _matUniform, dark: _matDark, helmet: _matHelmet } = MATS[type]
   const g = new THREE.Group()
 
   const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0): THREE.Mesh => {
@@ -75,6 +92,13 @@ function makeAgentMesh(): THREE.Group {
 }
 
 const RESPAWN_TIME = 120   // seconds before a dead group respawns
+
+function pickType(): EnemyType {
+  const r = Math.random()
+  if (r < 0.25) return 'scout'
+  if (r < 0.45) return 'gunner'
+  return 'standard'
+}
 
 interface SpawnGroup {
   cx:    number
@@ -184,10 +208,11 @@ export class AISystem {
   private spawnGroup(grp: SpawnGroup): void {
     const squadAgents: AIAgent[] = []
     for (let i = 0; i < grp.count; i++) {
-      const x = grp.cx + (Math.random() - 0.5) * SPAWN_SCATTER * 2
-      const z = grp.cz + (Math.random() - 0.5) * SPAWN_SCATTER * 2
-      const agent = new AIAgent(x, z, this.physics)
-      const mesh  = makeAgentMesh()
+      const x    = grp.cx + (Math.random() - 0.5) * SPAWN_SCATTER * 2
+      const z    = grp.cz + (Math.random() - 0.5) * SPAWN_SCATTER * 2
+      const type = pickType()
+      const agent = new AIAgent(x, z, this.physics, type)
+      const mesh  = makeAgentMesh(type)
       mesh.position.set(x, 1, z)
       this.scene.add(mesh)
       agent.mesh = mesh
@@ -242,10 +267,11 @@ export class AISystem {
   /** Spawn count infantry agents near world position (x, z) — used by boss reinforcement. */
   spawnReinforcement(x: number, z: number, count = 2): void {
     for (let i = 0; i < count; i++) {
-      const ox = x + (Math.random() - 0.5) * 14
-      const oz = z + (Math.random() - 0.5) * 14
-      const agent = new AIAgent(ox, oz, this.physics)
-      const mesh  = makeAgentMesh()
+      const ox   = x + (Math.random() - 0.5) * 14
+      const oz   = z + (Math.random() - 0.5) * 14
+      const type = pickType()
+      const agent = new AIAgent(ox, oz, this.physics, type)
+      const mesh  = makeAgentMesh(type)
       mesh.position.set(ox, 1, oz)
       this.scene.add(mesh)
       agent.mesh = mesh

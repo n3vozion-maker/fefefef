@@ -46,7 +46,7 @@ export class GameOverScreen {
       if (e.code === 'KeyR' && this.visible) this.hide()
     })
 
-    bus.on('playerDied', () => this.show())
+    bus.on('showGameOver', () => this.show())
   }
 
   private show(): void {

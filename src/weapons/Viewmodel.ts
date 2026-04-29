@@ -17,6 +17,9 @@ export class Viewmodel {
   private muzzleFlash: THREE.PointLight
   private flashTimer = 0
   private adsT       = 0
+  private swayT      = 0
+  private swayX      = 0
+  private swayY      = 0
 
   constructor(private camera: THREE.PerspectiveCamera) {
     this.group = new THREE.Group()
@@ -87,6 +90,14 @@ export class Viewmodel {
     this.adsT  = Math.max(0, Math.min(1, this.adsT))
     const t    = easeInOut(this.adsT)
     this.group.position.lerpVectors(STAND_POS, ADS_POS, t)
+
+    // Idle breathing sway — figure-8 drift, nearly zero in ADS
+    const swayAmp = (1 - t) * 0.0038
+    this.swayT   += dt * 0.85
+    this.swayX    = Math.cos(this.swayT * 0.65) * swayAmp
+    this.swayY    = Math.sin(this.swayT * 1.10) * swayAmp * 0.7
+    this.group.position.x += this.swayX
+    this.group.position.y += this.swayY
 
     // Reload bob
     if (reloading) {

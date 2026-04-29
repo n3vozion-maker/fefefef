@@ -11,11 +11,23 @@ const AGENT_BARREL  = AGENT_HEIGHT - AGENT_RADIUS * 2
 
 const WALK_SPEED    = 4.5
 const PATROL_SPEED  = 2.5
-const CHASE_SPEED   = 6.0
-const SHOOT_RANGE   = 35      // m — start shooting
-const STOP_RANGE    = 12      // m — stop moving, just shoot
-const FIRE_RATE     = 0.55    // seconds between shots
-const MAX_HEALTH    = 100
+
+export type EnemyType = 'standard' | 'scout' | 'gunner'
+
+interface EnemyStats {
+  maxHealth:   number
+  chaseSpeed:  number
+  shootRange:  number
+  stopRange:   number
+  fireRate:    number
+  damage:      number
+}
+
+const TYPE_STATS: Record<EnemyType, EnemyStats> = {
+  standard: { maxHealth: 100, chaseSpeed: 6.0, shootRange: 35, stopRange: 12, fireRate: 0.55, damage: 12 },
+  scout:    { maxHealth:  50, chaseSpeed: 9.2, shootRange: 22, stopRange:  4, fireRate: 0.42, damage:  8 },
+  gunner:   { maxHealth: 180, chaseSpeed: 3.2, shootRange: 30, stopRange: 15, fireRate: 0.95, damage: 22 },
+}
 
 // 4 distinct death poses: forward, backward, left, right
 const DEATH_POSES: Array<[number, number, number]> = [
@@ -30,10 +42,13 @@ let nextId = 1
 export class AIAgent {
   readonly id:     string
   readonly body:   CANNON.Body
+  readonly type:   EnemyType
 
   alertState: AlertState  = 'unaware'
-  health      = MAX_HEALTH
+  health:     number
   armour      = 0
+
+  readonly _stats: EnemyStats
 
   private tree:       BTNode
   private fireTimer   = 0
@@ -59,8 +74,11 @@ export class AIAgent {
   // Visual mesh managed by AISystem (Group for articulated soldier models)
   mesh: THREE.Object3D | null = null
 
-  constructor(spawnX: number, spawnZ: number, physics: PhysicsWorld) {
+  constructor(spawnX: number, spawnZ: number, physics: PhysicsWorld, type: EnemyType = 'standard') {
     this.id       = `agent_${nextId++}`
+    this.type     = type
+    this._stats   = TYPE_STATS[type]
+    this.health   = this._stats.maxHealth
     this.spawnPos = new THREE.Vector3(spawnX, 0, spawnZ)
 
     // Physics body
@@ -134,7 +152,7 @@ export class AIAgent {
 
   tryShoot(playerPos: THREE.Vector3): void {
     if (this.fireTimer > 0) return
-    this.fireTimer = FIRE_RATE + Math.random() * 0.3
+    this.fireTimer = this._stats.fireRate + Math.random() * 0.3
 
     const origin = this.getPosition().add(new THREE.Vector3(0, 0.6, 0))
     const dir    = playerPos.clone().sub(origin).normalize()
@@ -142,7 +160,7 @@ export class AIAgent {
     dir.y += (Math.random() - 0.5) * 0.04
     dir.normalize()
 
-    bus.emit('aiWeaponFired', { agentId: this.id, origin, direction: dir, damage: 12 })
+    bus.emit('aiWeaponFired', { agentId: this.id, origin, direction: dir, damage: this._stats.damage })
   }
 
   // ── Behaviour tree ─────────────────────────────────────────────────────────
@@ -154,23 +172,21 @@ export class AIAgent {
     const isCombat = condition((c) => (c as Ctx).agent.alertState === 'combat')
     const canSee   = condition((c) => {
       const ctx = c as Ctx
-      return ctx.agent.distanceTo(ctx.playerPos) < SHOOT_RANGE
+      return ctx.agent.distanceTo(ctx.playerPos) < ctx.agent._stats.shootRange
     })
 
     const doShoot = action((c) => {
       const ctx = c as Ctx
       const d   = ctx.agent.distanceTo(ctx.playerPos)
-      if (d > SHOOT_RANGE) return 'failure'
+      const s   = ctx.agent._stats
+      if (d > s.shootRange) return 'failure'
       ctx.agent.alertState = 'combat'
 
       if (ctx.agent.retreatTimer > 0) {
-        // Briefly retreat after being shot
         ctx.agent.moveAway(ctx.playerPos, WALK_SPEED, ctx.dt)
-      } else if (d > STOP_RANGE) {
-        // Advance while strafing for cover
-        ctx.agent.moveToWithStrafe(ctx.playerPos, CHASE_SPEED, ctx.dt)
+      } else if (d > s.stopRange) {
+        ctx.agent.moveToWithStrafe(ctx.playerPos, s.chaseSpeed, ctx.dt)
       } else {
-        // At optimal range — strafe laterally
         ctx.agent.strafe(ctx.playerPos, 3.8, ctx.dt)
       }
 

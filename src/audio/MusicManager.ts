@@ -3,7 +3,7 @@ import { bus }              from '../core/EventBus'
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-export type MusicState = 'explore' | 'combat' | 'boss1' | 'boss2' | 'boss3'
+export type MusicState = 'explore' | 'alert' | 'combat' | 'boss1' | 'boss2' | 'boss3'
 
 interface Layer {
   osc:  OscillatorNode
@@ -20,10 +20,12 @@ export class MusicManager {
   private dest:        AudioNode    | null = null
   private state:       MusicState = 'explore'
   private combatTimer  = 0
+  private alertTimer   = 0
   private stateTimer   = 0
 
   // Running layers
   private exploreLayers: Layer[]   = []
+  private alertLayers:   Layer[]   = []
   private combatLayers:  Layer[]   = []
   private wind: { src: AudioBufferSourceNode; gain: GainNode } | null = null
   private pulseIntervalId: ReturnType<typeof setInterval> | null = null
@@ -33,9 +35,10 @@ export class MusicManager {
   private bossPulseId: ReturnType<typeof setInterval> | null = null
 
   constructor(private audio: AudioSystem) {
-    bus.on('weaponFired', () => { if (!this.bossActive) this.combatTimer = 14 })
-    bus.on('agentDied',   () => { if (!this.bossActive) this.combatTimer = Math.max(this.combatTimer, 8) })
-    bus.on('explosion',   () => { if (!this.bossActive) this.combatTimer = Math.max(this.combatTimer, 10) })
+    bus.on('weaponFired',    () => { if (!this.bossActive) this.combatTimer = 14 })
+    bus.on('agentDied',     () => { if (!this.bossActive) this.combatTimer = Math.max(this.combatTimer, 8) })
+    bus.on('explosion',     () => { if (!this.bossActive) this.combatTimer = Math.max(this.combatTimer, 10) })
+    bus.on('aiWeaponFired', () => { if (!this.bossActive) this.alertTimer  = Math.max(this.alertTimer,  10) })
 
     bus.on<{ intensity: string }>('bossMusic', ({ intensity }) => {
       if (intensity === 'phase1') this.startBoss(1)
@@ -61,9 +64,13 @@ export class MusicManager {
 
     const dt = 1 / 60
     if (this.combatTimer > 0) this.combatTimer -= dt
+    if (this.alertTimer  > 0) this.alertTimer  -= dt
     this.stateTimer -= dt
 
-    const desired: MusicState = this.combatTimer > 0 ? 'combat' : 'explore'
+    const desired: MusicState =
+      this.combatTimer > 0 ? 'combat' :
+      this.alertTimer  > 0 ? 'alert'  :
+      'explore'
     if (desired !== this.state && this.stateTimer <= 0) {
       this.transition(desired)
       this.stateTimer = 3
@@ -134,6 +141,37 @@ export class MusicManager {
     src.connect(lp); lp.connect(hp); hp.connect(gain); gain.connect(dest)
     src.start()
     this.wind = { src, gain }
+  }
+
+  // ── Alert layers (AI shooting, player not engaged yet) ───────────────────
+
+  private startAlert(): void {
+    const ctx  = this.ctx!
+    const dest = this.dest!
+    const t    = ctx.currentTime
+
+    // Subtle rising tension — quiet and restrained vs full combat
+    const tension = ctx.createOscillator()
+    tension.type  = 'triangle'
+    tension.frequency.setValueAtTime(68, t)
+    tension.frequency.linearRampToValueAtTime(88, t + 20)
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 280
+    const tg = ctx.createGain(); tg.gain.value = 0
+    tg.gain.linearRampToValueAtTime(0.010, t + 2)
+    tension.connect(lp); lp.connect(tg); tg.connect(dest)
+    tension.start(t)
+    this.alertLayers.push({ osc: tension, gain: tg })
+  }
+
+  private stopAlert(): void {
+    const ctx = this.ctx
+    if (!ctx) return
+    for (const layer of this.alertLayers) {
+      layer.gain.gain.setValueAtTime(layer.gain.gain.value, ctx.currentTime)
+      layer.gain.gain.linearRampToValueAtTime(0.0, ctx.currentTime + 2)
+      layer.osc.stop(ctx.currentTime + 2.2)
+    }
+    this.alertLayers = []
   }
 
   // ── Combat layers ─────────────────────────────────────────────────────────
@@ -275,27 +313,25 @@ export class MusicManager {
   // ── Transitions ───────────────────────────────────────────────────────────
 
   private transition(next: MusicState): void {
+    const prev = this.state
     this.state = next
+    const ctx  = this.ctx
+
     if (next === 'combat') {
+      if (prev === 'alert') this.stopAlert()
       this.startCombat()
-      // Slightly lift explore drone volume during combat
-      for (const l of this.exploreLayers) {
-        l.gain.gain.linearRampToValueAtTime(
-          l.gain.gain.value * 1.4,
-          (this.ctx?.currentTime ?? 0) + 1,
-        )
-      }
+      for (const l of this.exploreLayers)
+        l.gain.gain.linearRampToValueAtTime(l.gain.gain.value * 1.4, (ctx?.currentTime ?? 0) + 1)
+    } else if (next === 'alert') {
+      if (prev === 'combat') this.stopCombat()
+      this.startAlert()
     } else {
+      // explore
       this.stopCombat()
-      // Bring explore drone back to normal
-      const ctx = this.ctx
+      this.stopAlert()
       if (ctx) {
-        for (const l of this.exploreLayers) {
-          l.gain.gain.linearRampToValueAtTime(
-            l.gain.gain.value / 1.4,
-            ctx.currentTime + 2,
-          )
-        }
+        for (const l of this.exploreLayers)
+          l.gain.gain.linearRampToValueAtTime(l.gain.gain.value / 1.4, ctx.currentTime + 2)
       }
     }
   }

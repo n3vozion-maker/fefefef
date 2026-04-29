@@ -67,6 +67,7 @@ import { UpgradeSystem }         from './player/UpgradeSystem'
 import { AIGrenadeSystem }       from './ai/AIGrenadeSystem'
 import { TracerSystem }          from './effects/TracerSystem'
 import { setPlayerDamageMult }   from './combat/DamageCalculator'
+import { KillcamSystem }         from './hud/KillcamSystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -89,6 +90,7 @@ const viewmodel   = new Viewmodel(renderer.camera)
 const missions    = new MissionSystem()
 const audio       = new AudioSystem()
 const hud         = new HUD()
+const killcam     = new KillcamSystem(renderer.camera)
 const loop        = new GameLoop()
 const unlocks     = new UnlockSystem()
 const ammoPickups = new AmmoPickupSystem(renderer.scene)
@@ -371,15 +373,20 @@ bus.on<{ position: THREE.Vector3; radius: number; damage: number }>('blastDamage
 
 // ── AI fire hits player ───────────────────────────────────────────────────────
 
+let lastKillerPos = new THREE.Vector3()
+
 bus.on<{ origin: THREE.Vector3; damage: number }>('aiWeaponFired', (e) => {
   const pp   = player.body.position
   const dist = e.origin.distanceTo(new THREE.Vector3(pp.x, pp.y, pp.z))
   if (dist < 45) {
+    lastKillerPos.copy(e.origin)
     playerStats.applyDamage(
       e.damage * Math.max(0, 1 - dist / 80) * DifficultySystem.enemyDamageMult * upgrades.armorMult,
     )
   }
 })
+
+bus.on('playerDied', () => killcam.trigger(lastKillerPos))
 
 // ── Drop system ammo pickup → active weapon reserve ───────────────────────────
 
@@ -546,8 +553,10 @@ bus.on('sqObjectiveUpdated', () => {
 })
 
 bus.on<number>('fixedUpdate', (dt) => {
-  // Gate everything while paused, dead, title screen showing, menus open, or map open
-  if (pauseMenu.paused || gameOver.isVisible() || !titleScreen.isDismissed() || fullMap.isOpen()) return
+  killcam.update(dt)   // always runs — drives the delayed game-over
+
+  // Gate everything while paused, dead, killcam active, title screen showing, menus open, or map open
+  if (pauseMenu.paused || gameOver.isVisible() || killcam.isActive() || !titleScreen.isDismissed() || fullMap.isOpen()) return
 
   // Slow-mo tick
   if (slowMoTimer > 0) {
