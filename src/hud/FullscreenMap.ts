@@ -5,9 +5,9 @@ import type { SideQuestSystem } from '../missions/SideQuestSystem'
 
 // ── Constants ─────────────────────────────────────────────────────────────────
 
-const SIZE        = 760          // canvas px (square)
+const SIZE        = Math.min(760, window.innerWidth - 40, window.innerHeight - 40)
 const WORLD_HALF  = 1650         // metres — shows ±1650 in both axes
-const SCALE       = SIZE / (WORLD_HALF * 2)   // px per metre ≈ 0.23
+const SCALE       = SIZE / (WORLD_HALF * 2)   // px per metre
 
 const POI_COLORS: Record<string, string> = {
   military_base:    '#ef5350',

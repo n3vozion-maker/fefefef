@@ -8,13 +8,70 @@ import { EnemyRobot }    from './enemies/EnemyRobot'
 import { EnemyDrone }    from './enemies/EnemyDrone'
 import { EnemyTank }     from './enemies/EnemyTank'
 
-// Simple enemy soldier mesh (capsule approximation)
-function makeAgentMesh(): THREE.Mesh {
-  const geo = new THREE.CapsuleGeometry(0.3, 1.2, 4, 6)
-  const mat = new THREE.MeshStandardMaterial({ color: 0x4a5c3a, roughness: 0.8 })
-  const mesh = new THREE.Mesh(geo, mat)
-  mesh.castShadow = true
-  return mesh
+// Shared materials (created once, reused for all soldiers)
+const _matUniform = new THREE.MeshStandardMaterial({ color: 0x3d4a2e, roughness: 0.85, metalness: 0.05 })
+const _matDark    = new THREE.MeshStandardMaterial({ color: 0x1e2612, roughness: 0.9,  metalness: 0.08 })
+const _matHelmet  = new THREE.MeshStandardMaterial({ color: 0x2a3520, roughness: 0.75, metalness: 0.22 })
+const _matGun     = new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.55, metalness: 0.82 })
+
+function makeAgentMesh(): THREE.Group {
+  const g = new THREE.Group()
+
+  const add = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, rx = 0, ry = 0, rz = 0): THREE.Mesh => {
+    const m = new THREE.Mesh(geo, mat)
+    m.position.set(x, y, z)
+    if (rx) m.rotation.x = rx
+    if (ry) m.rotation.y = ry
+    if (rz) m.rotation.z = rz
+    m.castShadow = true
+    g.add(m)
+    return m
+  }
+
+  // Head + helmet
+  add(new THREE.SphereGeometry(0.155, 8, 6),                               _matUniform, 0, 1.57, 0)
+  add(new THREE.CylinderGeometry(0.195, 0.185, 0.06, 10),                  _matHelmet,  0, 1.64, 0)
+  add(new THREE.SphereGeometry(0.18, 8, 5, 0, Math.PI*2, 0, Math.PI*0.6), _matHelmet,  0, 1.62, 0)
+
+  // Torso
+  add(new THREE.BoxGeometry(0.44, 0.50, 0.25), _matUniform, 0, 1.12, 0)
+  // Tactical vest
+  add(new THREE.BoxGeometry(0.40, 0.36, 0.09), _matDark,    0, 1.14, 0.10)
+  // Vest pouches
+  add(new THREE.BoxGeometry(0.10, 0.11, 0.08), _matDark, -0.12, 1.08, 0.14)
+  add(new THREE.BoxGeometry(0.10, 0.11, 0.08), _matDark,  0.12, 1.08, 0.14)
+
+  // Arms: left upper, left forearm
+  add(new THREE.CylinderGeometry(0.072, 0.066, 0.26, 6), _matUniform, -0.27, 1.11, 0,    0, 0,  0.22)
+  add(new THREE.CylinderGeometry(0.060, 0.054, 0.22, 6), _matUniform, -0.31, 0.88, 0)
+  // Arms: right upper (angled forward to hold weapon), right forearm
+  add(new THREE.CylinderGeometry(0.072, 0.066, 0.26, 6), _matUniform,  0.27, 1.11,-0.04, 0, 0, -0.22)
+  add(new THREE.CylinderGeometry(0.060, 0.054, 0.22, 6), _matUniform,  0.29, 0.89,-0.08,-0.28)
+
+  // Legs: left thigh, shin, boot
+  add(new THREE.CylinderGeometry(0.095, 0.085, 0.38, 6), _matUniform, -0.135, 0.63, 0)
+  add(new THREE.CylinderGeometry(0.078, 0.068, 0.34, 6), _matUniform, -0.135, 0.26, 0)
+  add(new THREE.BoxGeometry(0.13, 0.09, 0.21),            _matDark,   -0.135, 0.05, 0.04)
+  // Legs: right thigh, shin, boot
+  add(new THREE.CylinderGeometry(0.095, 0.085, 0.38, 6), _matUniform,  0.135, 0.63, 0)
+  add(new THREE.CylinderGeometry(0.078, 0.068, 0.34, 6), _matUniform,  0.135, 0.26, 0)
+  add(new THREE.BoxGeometry(0.13, 0.09, 0.21),            _matDark,    0.135, 0.05, 0.04)
+
+  // Assault rifle prop (held right side)
+  add(new THREE.BoxGeometry(0.052, 0.058, 0.34), _matGun, 0.21, 1.01, -0.11)
+  add(new THREE.CylinderGeometry(0.014, 0.014, 0.20, 6), _matGun, 0.21, 1.03, -0.29, Math.PI/2)
+  add(new THREE.BoxGeometry(0.038, 0.046, 0.11), _matDark, 0.21, 0.98,  0.08)
+
+  // Hit-flash overlay — unique material per group so opacity is per-instance
+  const flashMat  = new THREE.MeshBasicMaterial({
+    color: 0xff1a1a, transparent: true, opacity: 0, depthTest: false, depthWrite: false,
+  })
+  const flashMesh = new THREE.Mesh(new THREE.CapsuleGeometry(0.38, 1.15, 4, 8), flashMat)
+  flashMesh.position.y = 0.85
+  g.userData['flashMesh'] = flashMesh
+  g.add(flashMesh)
+
+  return g
 }
 
 const RESPAWN_TIME = 120   // seconds before a dead group respawns

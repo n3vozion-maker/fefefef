@@ -17,6 +17,14 @@ const STOP_RANGE    = 12      // m — stop moving, just shoot
 const FIRE_RATE     = 0.55    // seconds between shots
 const MAX_HEALTH    = 100
 
+// 4 distinct death poses: forward, backward, left, right
+const DEATH_POSES: Array<[number, number, number]> = [
+  [ Math.PI / 2,  0, 0],   // crumple forward
+  [-Math.PI / 2,  0, 0],   // fall back
+  [0,  0,  Math.PI / 2],   // topple right
+  [0,  0, -Math.PI / 2],   // topple left
+]
+
 let nextId = 1
 
 export class AIAgent {
@@ -34,8 +42,19 @@ export class AIAgent {
   private lastKnownPlayerPos: THREE.Vector3 | null = null
   private spawnPos:   THREE.Vector3
 
-  // Visual mesh managed by AISystem
-  mesh: THREE.Mesh | null = null
+  // Hit reaction
+  private hitFlashTimer = 0
+
+  // Tactical movement
+  private retreatTimer  = 0
+  private strafeDir:  1 | -1 = 1
+  private strafeTimer = 0
+
+  // Death
+  private deathPose = 0
+
+  // Visual mesh managed by AISystem (Group for articulated soldier models)
+  mesh: THREE.Object3D | null = null
 
   constructor(spawnX: number, spawnZ: number, physics: PhysicsWorld) {
     this.id       = `agent_${nextId++}`
@@ -65,17 +84,27 @@ export class AIAgent {
   update(dt: number, playerPos: THREE.Vector3): void {
     if (this.isDead()) return
     this.lastKnownPlayerPos = playerPos
-    this.fireTimer = Math.max(0, this.fireTimer - dt)
+    this.fireTimer    = Math.max(0, this.fireTimer - dt)
+    this.strafeTimer  = Math.max(0, this.strafeTimer - dt)
+    if (this.retreatTimer > 0) this.retreatTimer -= dt
     this.tree.tick({ agent: this, playerPos, dt })
-    this.syncMesh()
+    this.syncMesh(dt)
   }
 
   applyDamage(amount: number): void {
     this.health = Math.max(0, this.health - amount)
     if (this.alertState === 'unaware') this.alertState = 'combat'
     if (this.isDead()) {
+      this.deathPose = Math.floor(Math.random() * DEATH_POSES.length)
       bus.emit('agentDied', this.id)
       this.body.velocity.set(0, -2, 0)
+    } else {
+      // Visible hit flash
+      this.hitFlashTimer = 0.14
+      // 45% chance to briefly retreat from the hit
+      if (Math.random() < 0.45) {
+        this.retreatTimer = 0.7 + Math.random() * 0.8
+      }
     }
   }
 
@@ -91,7 +120,6 @@ export class AIAgent {
 
     const origin = this.getPosition().add(new THREE.Vector3(0, 0.6, 0))
     const dir    = playerPos.clone().sub(origin).normalize()
-    // Add inaccuracy
     dir.x += (Math.random() - 0.5) * 0.08
     dir.y += (Math.random() - 0.5) * 0.04
     dir.normalize()
@@ -104,12 +132,11 @@ export class AIAgent {
   private buildTree(): BTNode {
     type Ctx = { agent: AIAgent; playerPos: THREE.Vector3; dt: number }
 
-    const isDead    = condition((c) => (c as Ctx).agent.isDead())
-    const isCombat  = condition((c) => (c as Ctx).agent.alertState === 'combat')
-    const canSee    = condition((c) => {
+    const isDead   = condition((c) => (c as Ctx).agent.isDead())
+    const isCombat = condition((c) => (c as Ctx).agent.alertState === 'combat')
+    const canSee   = condition((c) => {
       const ctx = c as Ctx
-      const d   = ctx.agent.distanceTo(ctx.playerPos)
-      return d < SHOOT_RANGE
+      return ctx.agent.distanceTo(ctx.playerPos) < SHOOT_RANGE
     })
 
     const doShoot = action((c) => {
@@ -117,7 +144,18 @@ export class AIAgent {
       const d   = ctx.agent.distanceTo(ctx.playerPos)
       if (d > SHOOT_RANGE) return 'failure'
       ctx.agent.alertState = 'combat'
-      if (d > STOP_RANGE)  ctx.agent.moveTo(ctx.playerPos, CHASE_SPEED, ctx.dt)
+
+      if (ctx.agent.retreatTimer > 0) {
+        // Briefly retreat after being shot
+        ctx.agent.moveAway(ctx.playerPos, WALK_SPEED, ctx.dt)
+      } else if (d > STOP_RANGE) {
+        // Advance while strafing for cover
+        ctx.agent.moveToWithStrafe(ctx.playerPos, CHASE_SPEED, ctx.dt)
+      } else {
+        // At optimal range — strafe laterally
+        ctx.agent.strafe(ctx.playerPos, 3.8, ctx.dt)
+      }
+
       ctx.agent.tryShoot(ctx.playerPos)
       return 'running'
     })
@@ -145,6 +183,8 @@ export class AIAgent {
     ])
   }
 
+  // ── Movement helpers ───────────────────────────────────────────────────────
+
   private distanceTo(pos: THREE.Vector3): number {
     return this.getPosition().distanceTo(pos)
   }
@@ -157,6 +197,61 @@ export class AIAgent {
     dir.normalize().multiplyScalar(speed)
     this.body.velocity.x = dir.x
     this.body.velocity.z = dir.z
+  }
+
+  private moveAway(target: THREE.Vector3, speed: number, _dt: number): void {
+    const pos = this.getPosition()
+    const dir = pos.clone().sub(target)
+    dir.y = 0
+    if (dir.lengthSq() < 0.01) {
+      dir.set(Math.random() - 0.5, 0, Math.random() - 0.5)
+    }
+    dir.normalize().multiplyScalar(speed)
+    this.body.velocity.x = dir.x
+    this.body.velocity.z = dir.z
+  }
+
+  // Advance toward player while drifting perpendicular (weaving approach)
+  private moveToWithStrafe(target: THREE.Vector3, speed: number, dt: number): void {
+    const pos      = this.getPosition()
+    const toPlayer = target.clone().sub(pos)
+    toPlayer.y = 0
+    if (toPlayer.lengthSq() < 0.01) return
+    toPlayer.normalize()
+
+    const perp = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x)
+    const combined = toPlayer.clone().addScaledVector(perp, this.strafeDir * 0.5).normalize()
+
+    this.body.velocity.x = combined.x * speed
+    this.body.velocity.z = combined.z * speed
+
+    this.updateStrafeTimer(dt)
+  }
+
+  // Pure lateral strafe at close range
+  private strafe(target: THREE.Vector3, speed: number, dt: number): void {
+    const pos      = this.getPosition()
+    const toPlayer = target.clone().sub(pos)
+    toPlayer.y = 0
+    if (toPlayer.lengthSq() < 0.01) return
+    toPlayer.normalize()
+
+    const perp = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x)
+    perp.multiplyScalar(this.strafeDir * speed)
+
+    this.body.velocity.x = perp.x
+    this.body.velocity.z = perp.z
+
+    this.updateStrafeTimer(dt)
+  }
+
+  private updateStrafeTimer(dt: number): void {
+    if (this.strafeTimer <= 0) {
+      this.strafeDir   = this.strafeDir === 1 ? -1 : 1
+      this.strafeTimer = 1.1 + Math.random() * 1.6
+    } else {
+      this.strafeTimer -= dt
+    }
   }
 
   private patrol(dt: number): void {
@@ -175,9 +270,28 @@ export class AIAgent {
     this.moveTo(this.patrolTarget, PATROL_SPEED, dt)
   }
 
-  private syncMesh(): void {
+  // ── Mesh sync ──────────────────────────────────────────────────────────────
+
+  private syncMesh(dt: number): void {
     if (!this.mesh) return
     this.mesh.position.set(this.body.position.x, this.body.position.y, this.body.position.z)
-    if (this.isDead()) this.mesh.rotation.z = Math.PI / 2
+
+    if (this.isDead()) {
+      const pose = DEATH_POSES[this.deathPose] ?? DEATH_POSES[0]!
+      this.mesh.rotation.set(pose[0], pose[1], pose[2])
+    }
+
+    // Hit flash
+    if (this.hitFlashTimer > 0) {
+      this.hitFlashTimer -= dt
+      const flashMesh = this.mesh.userData['flashMesh'] as THREE.Mesh | undefined
+      if (flashMesh) {
+        (flashMesh.material as THREE.MeshBasicMaterial).opacity =
+          this.hitFlashTimer > 0 ? 0.55 * (this.hitFlashTimer / 0.14) : 0
+      }
+    } else {
+      const flashMesh = this.mesh.userData['flashMesh'] as THREE.Mesh | undefined
+      if (flashMesh) (flashMesh.material as THREE.MeshBasicMaterial).opacity = 0
+    }
   }
 }

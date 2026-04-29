@@ -25,6 +25,8 @@ export class TitleScreen {
       SaveSystem.delete()
       bus.emit('newGameStarted', {})
     }
+    // Must fire synchronously inside the click handler to count as a user gesture
+    bus.emit('titleDismissed', {})
     this.overlay.style.transition = 'opacity 0.45s'
     this.overlay.style.opacity    = '0'
     setTimeout(() => {

@@ -37,8 +37,8 @@ export class FirearmWeapon extends WeaponBase {
   }
 
   get isAutomatic(): boolean { return this.cfg.automatic }
-  get recoilPitch():  number { return this.cfg.recoilP }
-  get recoilYaw():    number { return this.cfg.recoilY }
+  get recoilPitch():  number { return this.cfg.recoilP * this.recoilMultiplier }
+  get recoilYaw():    number { return this.cfg.recoilY * this.recoilMultiplier }
 
   protected override onFire(origin: THREE.Vector3, direction: THREE.Vector3): void {
     const pellets = this.cfg.pellets ?? 1

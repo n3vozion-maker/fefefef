@@ -42,14 +42,40 @@ export class EnemySniper {
     ;(this.body as unknown as Record<string,unknown>).onDamage = (dmg: number) => this.applyDamage(dmg)
     physics.world.addBody(this.body)
 
-    // Mesh: tall slim figure, dark ghillie green
-    const geo  = new THREE.CapsuleGeometry(0.3, 1.2, 4, 8)
-    const mat  = new THREE.MeshStandardMaterial({ color: 0x2a3a1a, roughness: 0.9 })
-    const body = new THREE.Mesh(geo, mat)
-    body.castShadow = true
-
+    // Mesh: ghillie-suit sniper — layered lumpy form + prone rifle
     this.mesh = new THREE.Group()
-    this.mesh.add(body)
+
+    const matGhillie = new THREE.MeshStandardMaterial({ color: 0x2c3d18, roughness: 0.97, metalness: 0 })
+    const matLayer   = new THREE.MeshStandardMaterial({ color: 0x1e2c10, roughness: 0.99, metalness: 0 })
+    const matGun     = new THREE.MeshStandardMaterial({ color: 0x141414, roughness: 0.6,  metalness: 0.7 })
+
+    const mk = (geo: THREE.BufferGeometry, mat: THREE.Material, x: number, y: number, z: number, rx = 0, rz = 0): void => {
+      const m = new THREE.Mesh(geo, mat)
+      m.position.set(x, y, z)
+      if (rx) m.rotation.x = rx
+      if (rz) m.rotation.z = rz
+      m.castShadow = true
+      this.mesh.add(m)
+    }
+
+    // Core body (slightly hunched capsule)
+    mk(new THREE.CapsuleGeometry(0.28, 1.1, 4, 8), matGhillie, 0, 0, 0)
+    // Ghillie layers — irregular lumps over body
+    mk(new THREE.SphereGeometry(0.32, 7, 5), matLayer, 0,    0.55, 0.04)
+    mk(new THREE.SphereGeometry(0.26, 6, 4), matLayer, 0.1,  0.22, 0.05)
+    mk(new THREE.SphereGeometry(0.22, 6, 4), matLayer,-0.12,-0.08, 0)
+    mk(new THREE.SphereGeometry(0.20, 5, 4), matLayer, 0,   -0.35, 0.03)
+    // Head with ghillie net/hat
+    mk(new THREE.SphereGeometry(0.18, 7, 6), matGhillie, 0, 0.90, 0)
+    mk(new THREE.CylinderGeometry(0.24, 0.20, 0.10, 8), matLayer, 0, 0.96, 0)
+    mk(new THREE.SphereGeometry(0.22, 6, 4), matLayer, 0, 0.98, 0)
+
+    // Long sniper rifle
+    mk(new THREE.BoxGeometry(0.045, 0.05, 0.72), matGun,  0.15, 0.30, -0.25)
+    mk(new THREE.CylinderGeometry(0.012, 0.012, 0.42, 6), matGun, 0.15, 0.32, -0.56, Math.PI/2)
+    // Scope
+    mk(new THREE.CylinderGeometry(0.022, 0.022, 0.18, 8), matGun, 0.15, 0.38, -0.22, Math.PI/2)
+
     scene.add(this.mesh)
   }
 

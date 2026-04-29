@@ -240,6 +240,16 @@ const SOUNDS: Record<string, SoundFn> = {
     ns.connect(lp); lp.connect(g); g.connect(dest); ns.start(t)
   },
 
+  hit_surface(ctx, dest) {
+    const t  = ctx.currentTime
+    const ns = noise(ctx, 0.035)
+    const hp = ctx.createBiquadFilter(); hp.type = 'highpass'; hp.frequency.value = 1200
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass';  lp.frequency.value = 4000
+    const g  = ctx.createGain()
+    g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.03)
+    ns.connect(hp); hp.connect(lp); lp.connect(g); g.connect(dest); ns.start(t)
+  },
+
   hit_flesh(ctx, dest) {
     const t  = ctx.currentTime
     const ns = noise(ctx, 0.028)
@@ -321,6 +331,10 @@ export class AudioSystem {
   // Footstep cadence
   private footstepTimer = 0
 
+  // Ambient sounds
+  private ambientStarted   = false
+  private distantFireTimer = 12 + Math.random() * 18
+
   constructor() {
     this.music = new MusicManager(this)
 
@@ -360,8 +374,66 @@ export class AudioSystem {
   update(
     _listenerPos: { x: number; y: number; z: number },
     _listenerFwd: { x: number; y: number; z: number },
+    dt = 0,
   ): void {
     this.music.update()
+
+    if (!this.ambientStarted && this.ctx) {
+      this.startAmbientWind()
+      this.ambientStarted = true
+    }
+
+    // Occasional distant gunfire ambience
+    if (this.ambientStarted && dt > 0) {
+      this.distantFireTimer -= dt
+      if (this.distantFireTimer <= 0) {
+        this.playDistantFire()
+        this.distantFireTimer = 18 + Math.random() * 22
+      }
+    }
+  }
+
+  private startAmbientWind(): void {
+    try {
+      const ctx  = this.ensureCtx()
+      const dest = this.masterGain ?? ctx.destination
+
+      // Wind — bandpass-filtered looping noise with slow LFO gust
+      const buf = ctx.createBuffer(1, ctx.sampleRate * 4, ctx.sampleRate)
+      fillNoise(buf)
+      const src = ctx.createBufferSource()
+      src.buffer = buf; src.loop = true
+
+      const bp  = ctx.createBiquadFilter(); bp.type = 'bandpass'
+      bp.frequency.value = 280; bp.Q.value = 0.6
+
+      const wg  = ctx.createGain(); wg.gain.value = 0.028
+
+      // Slow LFO for gusts (0.06 Hz)
+      const lfo  = ctx.createOscillator(); lfo.frequency.value = 0.06
+      const lfoG = ctx.createGain(); lfoG.gain.value = 0.018
+      lfo.connect(lfoG); lfoG.connect(wg.gain)
+      lfo.start()
+
+      src.connect(bp); bp.connect(wg); wg.connect(dest)
+      src.start()
+    } catch { /* non-fatal */ }
+  }
+
+  private playDistantFire(): void {
+    try {
+      const ctx  = this.ensureCtx()
+      const dest = this.masterGain ?? ctx.destination
+      const t    = ctx.currentTime
+
+      const ns = noise(ctx, 0.08)
+      const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 700
+      const g  = ctx.createGain()
+      g.gain.setValueAtTime(0.0, t)
+      g.gain.linearRampToValueAtTime(0.07, t + 0.01)
+      g.gain.exponentialRampToValueAtTime(0.001, t + 0.08)
+      ns.connect(lp); lp.connect(g); g.connect(dest); ns.start(t)
+    } catch { /* non-fatal */ }
   }
 
   /** Call every frame while player is on foot. Plays footstep thumps at cadence. */
@@ -457,7 +529,8 @@ export class AudioSystem {
     bus.on('victoryAchieved',() => this.play('victory_fanfare'))
     bus.on<number>('volumeChanged', (v) => this.setMasterVolume(v))
 
-    bus.on<{ damage: number }>('damageEvent', () => this.play('hit_flesh'))
+    bus.on<{ damage: number }>('damageEvent',  () => this.play('hit_flesh'))
+    bus.on('bulletImpact', () => this.play('hit_surface'))
 
     bus.on<{ origin?: unknown }>('explosion',     () => this.play('explosion'))
     bus.on<{ origin?: unknown }>('grenadeThrown', () => this.play('explosion'))

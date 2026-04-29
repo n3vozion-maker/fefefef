@@ -5,18 +5,20 @@ import { calculateDamage }    from './DamageCalculator'
 import type { PhysicsWorld }  from '../physics/PhysicsWorld'
 import type { WeaponFiredPayload } from '../weapons/WeaponBase'
 
-interface ImpactDecal {
-  mesh:  THREE.Mesh
-  timer: number
+interface ImpactParticle {
+  mesh:   THREE.Mesh
+  vel:    THREE.Vector3
+  timer:  number
+  life:   number
 }
 
-const IMPACT_POOL_SIZE = 40
-const IMPACT_LIFETIME  = 6
+const IMPACT_POOL_SIZE = 60
+const IMPACT_LIFETIME  = 0.55
 
 export class CombatSystem {
-  private impacts:  ImpactDecal[] = []
-  private impactGeo = new THREE.SphereGeometry(0.06, 4, 4)
-  private impactMat = new THREE.MeshBasicMaterial({ color: 0x111111 })
+  private impacts:   ImpactParticle[] = []
+  private dustGeo   = new THREE.SphereGeometry(0.07, 4, 3)
+  private dustMat   = new THREE.MeshBasicMaterial({ color: 0x9a8870, transparent: true, opacity: 0.75, depthWrite: false })
 
   constructor(
     private physics: PhysicsWorld,
@@ -28,13 +30,16 @@ export class CombatSystem {
   }
 
   update(dt: number): void {
-    for (const imp of this.impacts) {
-      imp.timer -= dt
-      if (imp.timer <= 0) {
-        this.scene.remove(imp.mesh)
-      }
+    for (const p of this.impacts) {
+      p.timer -= dt
+      p.mesh.position.addScaledVector(p.vel, dt)
+      p.vel.multiplyScalar(1 - 8 * dt)   // drag
+      const frac = Math.max(0, p.timer / p.life)
+      ;(p.mesh.material as THREE.MeshBasicMaterial).opacity = frac * 0.75
+      p.mesh.scale.setScalar(1 + (1 - frac) * 1.8)
+      if (p.timer <= 0) this.scene.remove(p.mesh)
     }
-    this.impacts = this.impacts.filter(i => i.timer > 0)
+    this.impacts = this.impacts.filter(p => p.timer > 0)
   }
 
   // ── Private ─────────────────────────────────────────────────────────────────
@@ -71,19 +76,30 @@ export class CombatSystem {
       )
       bus.emit('damageEvent', { agentId: body.agentId, damage: dmg, position: hitPt })
     } else {
-      // Terrain / prop hit — spawn impact mark
-      this.spawnImpact(hitPt)
+      // Terrain / structure hit — dust puff + audio
+      this.spawnImpact(hitPt, result.hitNormalWorld as unknown as THREE.Vector3)
+      bus.emit('bulletImpact', { position: hitPt })
     }
   }
 
-  private spawnImpact(pos: THREE.Vector3): void {
-    if (this.impacts.length >= IMPACT_POOL_SIZE) {
-      const oldest = this.impacts.shift()!
-      this.scene.remove(oldest.mesh)
+  private spawnImpact(pos: THREE.Vector3, _normal?: THREE.Vector3): void {
+    const PARTICLES = 4
+    for (let i = 0; i < PARTICLES; i++) {
+      if (this.impacts.length >= IMPACT_POOL_SIZE) {
+        const oldest = this.impacts.shift()!
+        this.scene.remove(oldest.mesh)
+      }
+      // Clone material so opacity is independent per particle
+      const mat  = this.dustMat.clone()
+      const mesh = new THREE.Mesh(this.dustGeo, mat)
+      mesh.position.copy(pos)
+      const vel = new THREE.Vector3(
+        (Math.random() - 0.5) * 3.5,
+        Math.random() * 2.5 + 0.5,
+        (Math.random() - 0.5) * 3.5,
+      )
+      this.scene.add(mesh)
+      this.impacts.push({ mesh, vel, timer: IMPACT_LIFETIME, life: IMPACT_LIFETIME })
     }
-    const mesh = new THREE.Mesh(this.impactGeo, this.impactMat)
-    mesh.position.copy(pos)
-    this.scene.add(mesh)
-    this.impacts.push({ mesh, timer: IMPACT_LIFETIME })
   }
 }

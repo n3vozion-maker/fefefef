@@ -55,7 +55,10 @@ import { ChestSystem }           from './world/ChestSystem'
 import { WaypointHUD, MISSION_POI, POI_REACH_RADIUS } from './hud/WaypointHUD'
 import { SideQuestPanel }        from './hud/SideQuestPanel'
 import { buildAllStructures }    from './world/WorldStructures'
+import { buildVegetation }       from './world/VegetationSystem'
 import { FullscreenMap }         from './hud/FullscreenMap'
+import { CashSystem }            from './economy/CashSystem'
+import { MissionBriefing }       from './hud/MissionBriefing'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -82,12 +85,14 @@ const loop        = new GameLoop()
 const unlocks     = new UnlockSystem()
 const ammoPickups = new AmmoPickupSystem(renderer.scene)
 const vehicleSys  = new VehicleSystem(renderer.scene, physics, renderer.camera)
-const loadoutMenu    = new WeaponLoadoutMenu(weaponMgr)
+const cashSys        = new CashSystem()
+const loadoutMenu    = new WeaponLoadoutMenu(weaponMgr, cashSys)
 const consumables    = new ConsumableInventory()
 const vehiclePickups = new VehiclePickupSystem(renderer.scene)
 const endgame        = new EndgameSystem(unlocks)
 const minimap        = new Minimap()
 const fullMap        = new FullscreenMap()
+const briefing       = new MissionBriefing()
 const confetti       = new ConfettiSystem()
 const victoryScreen  = new VictoryScreen()
 void confetti   // listeners registered in constructor
@@ -196,6 +201,9 @@ renderer.getCanvas().addEventListener('click', () => {
   }
 })
 
+// BUG 1 fix: auto-request pointer lock when ENGAGE is clicked (user gesture)
+bus.on('titleDismissed', () => input.requestPointerLock(renderer.getCanvas()))
+
 // ── Scene lighting ────────────────────────────────────────────────────────────
 
 const { scene } = renderer
@@ -219,6 +227,16 @@ scene.add(hemiLight)
 // ── Day/Night cycle ───────────────────────────────────────────────────────────
 
 const dayNight = new DayNightSystem(sun, ambientLight, hemiLight, scene, scene.fog as THREE.FogExp2)
+
+// ── Player flashlight (auto-activates at night) ────────────────────────────────
+
+const flashlight = new THREE.SpotLight(0xfff4e0, 0, 45, 0.32, 0.45, 1.6)
+flashlight.castShadow = false
+flashlight.position.set(0.15, -0.08, -0.2)
+renderer.camera.add(flashlight)
+renderer.camera.add(flashlight.target)
+flashlight.target.position.set(0, 0, -1)
+scene.add(renderer.camera)
 
 // ── Boss meshes ───────────────────────────────────────────────────────────────
 const allBosses = [bossVoss, bossWraith, bossIron7, bossPhantom, bossRex] as const
@@ -251,8 +269,9 @@ sqPanel.show(sqSystem.quests[0]!.title, sqSystem.quests[0]!.objectives[0]!.descr
 const titleScreen = new TitleScreen()
 void bossHealthBar
 
-// ── World structures ──────────────────────────────────────────────────────────
+// ── World structures + vegetation ─────────────────────────────────────────────
 buildAllStructures(renderer.scene, physics)
+buildVegetation(renderer.scene)
 
 // ── Vehicle spawns ────────────────────────────────────────────────────────────
 
@@ -274,8 +293,8 @@ const ammoSites: [number, number, number][] = [
   [-900, 2, -200],   // outpost west
   [  -0, 2,    0],   // spawn area
 ]
-for (const [ax, ay, az] of ammoSites) {
-  ammoPickups.spawnCluster(ax, ay, az, 4)
+for (const [ax, , az] of ammoSites) {
+  ammoPickups.spawnCluster(ax, getTerrainHeight(ax, az) + 0.5, az, 4)
 }
 
 // ── Vehicle pickup clusters (repair kits + fuel canisters) ────────────────────
@@ -290,8 +309,8 @@ const vehiclePickupSites: [number, number, number][] = [
   [  400, 2, 280],   // mid-map
   [ -350, 2, 530],   // mid-map W
 ]
-for (const [vx, vy, vz] of vehiclePickupSites) {
-  vehiclePickups.spawnCluster(vx, vy, vz)
+for (const [vx, , vz] of vehiclePickupSites) {
+  vehiclePickups.spawnCluster(vx, getTerrainHeight(vx, vz) + 0.5, vz)
 }
 
 // Lock prompt
@@ -580,11 +599,19 @@ bus.on<number>('fixedUpdate', (dt) => {
   }
   waypointHUD.tick(playerPos, playerCam.getYaw(), wpTarget, wpLabel)
 
-  minimap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions(), null)
+  minimap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions(), wpTarget)
   fullMap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions())
 
   // Day/night, ammo, vehicles, endgame
   dayNight.update(dt)
+  briefing.update(dt)
+
+  // Flashlight: ramp in as night falls (brightness < 0.25 → full on)
+  const bright = dayNight.brightness
+  flashlight.intensity = bright < 0.25
+    ? THREE.MathUtils.lerp(9, 0, bright / 0.25)
+    : 0
+
   ammoPickups.update(dt, playerPos)
   vehiclePickups.update(dt, playerPos, consumables)
   endgame.update(dt, playerPos)
@@ -627,7 +654,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   hud.tick(dt, (playerStats.health / playerStats.maxHealth) * 100)
 
   const fwd = playerCam.getMuzzleDirection()
-  audio.update({ x: playerPos.x, y: playerPos.y, z: playerPos.z }, { x: fwd.x, y: fwd.y, z: fwd.z })
+  audio.update({ x: playerPos.x, y: playerPos.y, z: playerPos.z }, { x: fwd.x, y: fwd.y, z: fwd.z }, dt)
 
   const p = player.body.position
   const phase = dayNight.phase

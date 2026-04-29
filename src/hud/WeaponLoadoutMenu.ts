@@ -1,6 +1,10 @@
-import type { WeaponManager } from '../weapons/WeaponManager'
-import type { WeaponBase }    from '../weapons/WeaponBase'
-import { bus }                from '../core/EventBus'
+import type { WeaponManager }  from '../weapons/WeaponManager'
+import type { WeaponBase }     from '../weapons/WeaponBase'
+import type { CashSystem }     from '../economy/CashSystem'
+import { AttachmentRegistry }  from '../weapons/AttachmentRegistry'
+import type { AttachmentDef }  from '../weapons/AttachmentRegistry'
+import type { AttachmentSlot } from '../weapons/WeaponRegistry'
+import { bus }                 from '../core/EventBus'
 
 // ── Colours per category ──────────────────────────────────────────────────────
 
@@ -19,73 +23,135 @@ function catColor(cat: string): string {
   return CAT_COLOR[cat] ?? fallbackColor
 }
 
+const SLOT_ORDER: AttachmentSlot[] = ['scope', 'muzzle', 'grip', 'magazine', 'underbarrel']
+const SLOT_LABEL: Record<AttachmentSlot, string> = {
+  scope:       'SCOPE',
+  muzzle:      'MUZZLE',
+  grip:        'GRIP',
+  magazine:    'MAGAZINE',
+  underbarrel: 'UNDERBARREL',
+}
+
 // ── WeaponLoadoutMenu ─────────────────────────────────────────────────────────
-// Opens with Tab.  Shows 3 equipped slots at the top + scrollable backpack below.
-// Click an equipped slot → select it (gold highlight).
-// Click a backpack card → swap into selected slot.
-// Right-click an equipped slot → holster it.
 
 export class WeaponLoadoutMenu {
   private overlay:  HTMLElement
   private slotEls:  HTMLElement[] = []
   private bpList:   HTMLElement
+  private attPanel: HTMLElement   // attachment shop panel
   private _open     = false
   private selected: 0 | 1 | 2 | null = null
 
-  constructor(private mgr: WeaponManager) {
+  constructor(private mgr: WeaponManager, private cash: CashSystem) {
+    // ── Shared CSS ────────────────────────────────────────────────────────────
+    const style = document.createElement('style')
+    style.textContent = `
+      .att-buy-btn {
+        padding:3px 10px; border-radius:2px; cursor:pointer; font-size:9px;
+        font-family:monospace; letter-spacing:.12em; border:1px solid rgba(255,215,0,0.45);
+        background:rgba(255,215,0,0.08); color:#ffd700; transition:background 0.12s;
+        white-space:nowrap;
+      }
+      .att-buy-btn:hover { background:rgba(255,215,0,0.18); }
+      .att-buy-btn.equipped {
+        border-color:rgba(100,220,100,0.5); background:rgba(100,220,100,0.1); color:#6fef8f;
+        cursor:default;
+      }
+      .att-buy-btn.unequip {
+        border-color:rgba(255,80,80,0.4); background:rgba(255,80,80,0.08); color:#ff6060;
+      }
+      .att-buy-btn.unequip:hover { background:rgba(255,80,80,0.18); }
+      .att-buy-btn.cant-afford { opacity:0.35; cursor:not-allowed; }
+      .att-slot-header {
+        font-size:8px; letter-spacing:.2em; color:rgba(255,255,255,0.28);
+        text-transform:uppercase; padding:7px 0 4px; border-top:1px solid rgba(255,255,255,0.06);
+        margin-top:6px;
+      }
+      .att-slot-header:first-child { border-top:none; margin-top:0; padding-top:0; }
+      .att-row {
+        display:flex; align-items:center; justify-content:space-between;
+        gap:10px; padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.04);
+      }
+      .att-row:last-child { border-bottom:none; }
+    `
+    document.head.appendChild(style)
+
     // ── Overlay ──────────────────────────────────────────────────────────────
     this.overlay = document.createElement('div')
     Object.assign(this.overlay.style, {
       position: 'fixed', inset: '0', display: 'none',
-      background: 'rgba(0,0,0,0.88)', backdropFilter: 'blur(5px)',
+      background: 'rgba(0,0,0,0.90)', backdropFilter: 'blur(5px)',
       fontFamily: 'monospace', color: '#fff', zIndex: '85',
-      flexDirection: 'column', alignItems: 'center', justifyContent: 'flex-start',
-      paddingTop: '6vh', gap: '0',
+      flexDirection: 'row', alignItems: 'flex-start', justifyContent: 'center',
+      paddingTop: '5vh', gap: '28px', paddingLeft: '20px', paddingRight: '20px',
     })
 
-    // ── Title ────────────────────────────────────────────────────────────────
+    // ── Left column: loadout ──────────────────────────────────────────────────
+    const leftCol = document.createElement('div')
+    Object.assign(leftCol.style, {
+      display: 'flex', flexDirection: 'column', alignItems: 'flex-start',
+      gap: '0', flexShrink: '0',
+    })
+
+    // Title
     const title = document.createElement('div')
     Object.assign(title.style, {
-      fontSize: '13px', letterSpacing: '0.22em', color: 'rgba(255,255,255,0.4)',
-      textTransform: 'uppercase', marginBottom: '28px',
+      fontSize: '11px', letterSpacing: '.22em', color: 'rgba(255,255,255,0.35)',
+      textTransform: 'uppercase', marginBottom: '22px',
     })
-    title.textContent = 'WEAPON LOADOUT  —  Tab to close  |  Click slot → select  |  Click backpack → swap  |  Right-click slot → holster'
-    this.overlay.appendChild(title)
+    title.textContent = 'WEAPON LOADOUT  —  Tab to close  ·  Click slot → select  ·  Click backpack → swap  ·  Right-click slot → holster'
+    leftCol.appendChild(title)
 
-    // ── Equipped slots row ────────────────────────────────────────────────────
+    // Slot row
     const slotRow = document.createElement('div')
-    Object.assign(slotRow.style, {
-      display: 'flex', gap: '16px', marginBottom: '32px',
-    })
-
+    Object.assign(slotRow.style, { display: 'flex', gap: '14px', marginBottom: '28px' })
     for (let i = 0; i < 3; i++) {
       const el = this.makeSlotCard(i as 0 | 1 | 2)
       slotRow.appendChild(el)
       this.slotEls.push(el)
     }
-    this.overlay.appendChild(slotRow)
+    leftCol.appendChild(slotRow)
 
-    // ── Backpack section ──────────────────────────────────────────────────────
+    // Backpack header
     const bpHeader = document.createElement('div')
     Object.assign(bpHeader.style, {
-      fontSize: '11px', letterSpacing: '0.16em', color: 'rgba(255,255,255,0.35)',
-      textTransform: 'uppercase', marginBottom: '14px', alignSelf: 'flex-start',
-      marginLeft: 'calc(50vw - 312px)',
+      fontSize: '10px', letterSpacing: '.16em', color: 'rgba(255,255,255,0.3)',
+      textTransform: 'uppercase', marginBottom: '12px',
     })
     bpHeader.textContent = 'Backpack'
-    this.overlay.appendChild(bpHeader)
+    leftCol.appendChild(bpHeader)
 
     const bpScroll = document.createElement('div')
-    Object.assign(bpScroll.style, {
-      overflowY: 'auto', maxHeight: '45vh', width: '660px',
-    })
+    Object.assign(bpScroll.style, { overflowY: 'auto', maxHeight: '42vh', width: '642px' })
     this.bpList = document.createElement('div')
-    Object.assign(this.bpList.style, {
-      display: 'flex', flexWrap: 'wrap', gap: '12px',
-    })
+    Object.assign(this.bpList.style, { display: 'flex', flexWrap: 'wrap', gap: '12px' })
     bpScroll.appendChild(this.bpList)
-    this.overlay.appendChild(bpScroll)
+    leftCol.appendChild(bpScroll)
 
+    this.overlay.appendChild(leftCol)
+
+    // ── Right column: attachment shop ─────────────────────────────────────────
+    const rightCol = document.createElement('div')
+    Object.assign(rightCol.style, {
+      width: '330px', flexShrink: '0', display: 'flex', flexDirection: 'column',
+    })
+
+    const attHeader = document.createElement('div')
+    Object.assign(attHeader.style, {
+      fontSize: '10px', letterSpacing: '.2em', color: 'rgba(255,255,255,0.3)',
+      textTransform: 'uppercase', marginBottom: '14px',
+    })
+    attHeader.textContent = 'Attachments'
+    rightCol.appendChild(attHeader)
+
+    const attScroll = document.createElement('div')
+    Object.assign(attScroll.style, { overflowY: 'auto', maxHeight: '88vh' })
+    this.attPanel = document.createElement('div')
+    Object.assign(this.attPanel.style, { display: 'flex', flexDirection: 'column' })
+    attScroll.appendChild(this.attPanel)
+    rightCol.appendChild(attScroll)
+
+    this.overlay.appendChild(rightCol)
     document.body.appendChild(this.overlay)
 
     // ── Keyboard toggle ───────────────────────────────────────────────────────
@@ -96,8 +162,8 @@ export class WeaponLoadoutMenu {
       }
     })
 
-    // Refresh when loadout changes (unlock, ammo pickup, etc.)
     bus.on('loadoutChanged', () => { if (this._open) this.rebuild() })
+    bus.on<number>('cashChanged', () => { if (this._open) this.rebuildAttachPanel() })
   }
 
   // ── Public ───────────────────────────────────────────────────────────────────
@@ -121,25 +187,155 @@ export class WeaponLoadoutMenu {
   // ── Build ─────────────────────────────────────────────────────────────────────
 
   private rebuild(): void {
-    // Re-render all 3 slot cards
-    for (let i = 0; i < 3; i++) {
-      this.refreshSlotCard(i as 0 | 1 | 2)
-    }
+    for (let i = 0; i < 3; i++) this.refreshSlotCard(i as 0 | 1 | 2)
 
-    // Re-render backpack
     this.bpList.innerHTML = ''
     const bp = this.mgr.backpack
     if (bp.length === 0) {
       const empty = document.createElement('div')
-      Object.assign(empty.style, { color: 'rgba(255,255,255,0.25)', fontSize: '12px', padding: '12px' })
+      Object.assign(empty.style, { color: 'rgba(255,255,255,0.22)', fontSize: '12px', padding: '12px' })
       empty.textContent = 'Backpack is empty'
       this.bpList.appendChild(empty)
     } else {
-      bp.forEach((w, idx) => {
-        const card = this.makeBackpackCard(w, idx)
-        this.bpList.appendChild(card)
-      })
+      bp.forEach((w, idx) => this.bpList.appendChild(this.makeBackpackCard(w, idx)))
     }
+
+    this.rebuildAttachPanel()
+  }
+
+  // ── Attachment panel ──────────────────────────────────────────────────────────
+
+  private rebuildAttachPanel(): void {
+    this.attPanel.innerHTML = ''
+
+    // Use the active weapon as the target for attachments
+    const w = this.mgr.activeWeapon()
+    if (!w) {
+      const none = document.createElement('div')
+      Object.assign(none.style, { color: 'rgba(255,255,255,0.2)', fontSize: '11px', padding: '8px' })
+      none.textContent = 'No weapon equipped'
+      this.attPanel.appendChild(none)
+      return
+    }
+
+    // Weapon name + cash balance
+    const weaponRow = document.createElement('div')
+    Object.assign(weaponRow.style, {
+      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+      marginBottom: '14px',
+    })
+    const wName = document.createElement('div')
+    Object.assign(wName.style, { fontSize: '13px', fontWeight: 'bold', color: '#fff', letterSpacing: '.05em' })
+    wName.textContent = w.getName()
+    const cashBadge = document.createElement('div')
+    Object.assign(cashBadge.style, { fontSize: '13px', fontWeight: 'bold', color: '#ffd700', letterSpacing: '.04em' })
+    cashBadge.textContent = `$${this.cash.cash.toLocaleString()}`
+    weaponRow.appendChild(wName)
+    weaponRow.appendChild(cashBadge)
+    this.attPanel.appendChild(weaponRow)
+
+    const supportedSlots = w.getStats().attachmentSlots
+    if (!supportedSlots || supportedSlots.length === 0) {
+      const noSlot = document.createElement('div')
+      Object.assign(noSlot.style, { color: 'rgba(255,255,255,0.2)', fontSize: '11px' })
+      noSlot.textContent = 'This weapon has no attachment slots'
+      this.attPanel.appendChild(noSlot)
+      return
+    }
+
+    for (const slot of SLOT_ORDER) {
+      if (!supportedSlots.includes(slot)) continue
+
+      // Slot header
+      const hdr = document.createElement('div')
+      hdr.className = 'att-slot-header'
+      hdr.textContent = SLOT_LABEL[slot]
+      this.attPanel.appendChild(hdr)
+
+      const equipped = w.getAttachment(slot)
+
+      // If equipped, show unequip button at top
+      if (equipped) {
+        const row = this.makeAttachRow(equipped, 'equipped', w, slot)
+        this.attPanel.appendChild(row)
+      }
+
+      // Shop items for this slot
+      for (const att of AttachmentRegistry.bySlot(slot)) {
+        if (equipped?.id === att.id) continue   // already shown above
+        const canAfford = this.cash.cash >= att.cost
+        const row = this.makeAttachRow(att, canAfford ? 'buy' : 'cant-afford', w, slot)
+        this.attPanel.appendChild(row)
+      }
+    }
+  }
+
+  private makeAttachRow(
+    att: AttachmentDef,
+    mode: 'equipped' | 'buy' | 'cant-afford',
+    w: WeaponBase,
+    slot: AttachmentSlot,
+  ): HTMLElement {
+    const row = document.createElement('div')
+    row.className = 'att-row'
+
+    const info = document.createElement('div')
+    Object.assign(info.style, { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1', minWidth: '0' })
+
+    const nameEl = document.createElement('div')
+    Object.assign(nameEl.style, {
+      fontSize: '11px', color: mode === 'equipped' ? '#6fef8f' : '#d0d0d0',
+      fontWeight: mode === 'equipped' ? 'bold' : 'normal', whiteSpace: 'nowrap',
+    })
+    nameEl.textContent = att.name
+
+    const descEl = document.createElement('div')
+    Object.assign(descEl.style, { fontSize: '9px', color: 'rgba(255,255,255,0.35)', letterSpacing: '.02em' })
+    descEl.textContent = att.description
+
+    info.appendChild(nameEl)
+    info.appendChild(descEl)
+    row.appendChild(info)
+
+    const rightSide = document.createElement('div')
+    Object.assign(rightSide.style, { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px', flexShrink: '0' })
+
+    if (mode === 'equipped') {
+      const equipped = document.createElement('div')
+      Object.assign(equipped.style, { fontSize: '9px', color: '#6fef8f', letterSpacing: '.1em' })
+      equipped.textContent = '✓ EQUIPPED'
+      rightSide.appendChild(equipped)
+
+      const unequipBtn = document.createElement('button')
+      unequipBtn.className = 'att-buy-btn unequip'
+      unequipBtn.textContent = 'REMOVE'
+      unequipBtn.addEventListener('click', () => {
+        w.removeAttachment(slot)
+        this.rebuildAttachPanel()
+      })
+      rightSide.appendChild(unequipBtn)
+    } else {
+      const costEl = document.createElement('div')
+      Object.assign(costEl.style, { fontSize: '10px', color: '#ffd700', letterSpacing: '.05em' })
+      costEl.textContent = `$${att.cost}`
+      rightSide.appendChild(costEl)
+
+      const buyBtn = document.createElement('button')
+      buyBtn.className = 'att-buy-btn' + (mode === 'cant-afford' ? ' cant-afford' : '')
+      buyBtn.textContent = 'BUY'
+      if (mode === 'buy') {
+        buyBtn.addEventListener('click', () => {
+          if (this.cash.spend(att.cost)) {
+            w.equipAttachment(att)
+            this.rebuildAttachPanel()
+          }
+        })
+      }
+      rightSide.appendChild(buyBtn)
+    }
+
+    row.appendChild(rightSide)
+    return row
   }
 
   // ── Slot card ─────────────────────────────────────────────────────────────────
@@ -155,7 +351,6 @@ export class WeaponLoadoutMenu {
       cursor: 'pointer', transition: 'border-color 0.15s, background 0.15s',
       position: 'relative',
     })
-
     card.addEventListener('click', () => this.onSlotClick(slot, card))
     card.addEventListener('contextmenu', (e) => {
       e.preventDefault()
@@ -169,7 +364,6 @@ export class WeaponLoadoutMenu {
     card.addEventListener('mouseleave', () => {
       if (this.selected !== slot) card.style.background = 'rgba(255,255,255,0.04)'
     })
-
     this.fillSlotCard(card, slot)
     return card
   }
@@ -179,21 +373,17 @@ export class WeaponLoadoutMenu {
     if (!card) return
     card.innerHTML = ''
     this.fillSlotCard(card, slot)
-
-    const isSelected = this.selected === slot
-    card.style.borderColor = isSelected ? '#ffc107' : 'rgba(255,255,255,0.12)'
-    card.style.background  = isSelected ? 'rgba(255,193,7,0.08)' : 'rgba(255,255,255,0.04)'
+    const isSel = this.selected === slot
+    card.style.borderColor = isSel ? '#ffc107' : 'rgba(255,255,255,0.12)'
+    card.style.background  = isSel ? 'rgba(255,193,7,0.08)' : 'rgba(255,255,255,0.04)'
   }
 
   private fillSlotCard(card: HTMLElement, slot: 0 | 1 | 2): void {
     const labels = ['1  RIFLE / PRIMARY', '2  SECONDARY', '3  SIDEARM']
-
-    // Slot label
     const label = document.createElement('div')
     Object.assign(label.style, {
-      fontSize: '9px', letterSpacing: '0.14em',
-      color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase',
-      marginBottom: '2px',
+      fontSize: '9px', letterSpacing: '.14em',
+      color: 'rgba(255,255,255,0.3)', textTransform: 'uppercase', marginBottom: '2px',
     })
     label.textContent = labels[slot] ?? `SLOT ${slot + 1}`
     card.appendChild(label)
@@ -201,22 +391,18 @@ export class WeaponLoadoutMenu {
     const w = this.mgr.slots[slot]
     if (!w) {
       const empty = document.createElement('div')
-      Object.assign(empty.style, {
-        color: 'rgba(255,255,255,0.2)', fontSize: '13px', marginTop: '12px',
-      })
+      Object.assign(empty.style, { color: 'rgba(255,255,255,0.2)', fontSize: '13px', marginTop: '12px' })
       empty.textContent = '[ EMPTY ]'
       card.appendChild(empty)
     } else {
       this.appendWeaponInfo(card, w)
     }
 
-    // Active indicator
     if (slot === this.mgr.getCurrentSlot() && w) {
       const dot = document.createElement('div')
       Object.assign(dot.style, {
         position: 'absolute', top: '10px', right: '12px',
-        width: '6px', height: '6px', borderRadius: '50%',
-        background: '#4caf50',
+        width: '6px', height: '6px', borderRadius: '50%', background: '#4caf50',
       })
       card.appendChild(dot)
     }
@@ -227,7 +413,6 @@ export class WeaponLoadoutMenu {
   private makeBackpackCard(w: WeaponBase, idx: number): HTMLElement {
     const card = document.createElement('div')
     const cc   = catColor(w.getCategory())
-
     Object.assign(card.style, {
       width: '196px', minHeight: '110px',
       border: `1px solid ${cc}44`,
@@ -237,7 +422,6 @@ export class WeaponLoadoutMenu {
       cursor: this.selected !== null ? 'pointer' : 'default',
       transition: 'border-color 0.15s, background 0.15s',
     })
-
     card.addEventListener('mouseenter', () => {
       if (this.selected !== null) {
         card.style.borderColor = cc
@@ -248,14 +432,12 @@ export class WeaponLoadoutMenu {
       card.style.borderColor = `${cc}44`
       card.style.background  = 'rgba(255,255,255,0.03)'
     })
-
     card.addEventListener('click', () => {
       if (this.selected === null) return
       this.mgr.swapBackpackIntoSlot(idx, this.selected)
       this.selected = null
       this.rebuild()
     })
-
     this.appendWeaponInfo(card, w)
     return card
   }
@@ -265,31 +447,24 @@ export class WeaponLoadoutMenu {
   private appendWeaponInfo(parent: HTMLElement, w: WeaponBase): void {
     const cc = catColor(w.getCategory())
 
-    // Category badge
     const badge = document.createElement('div')
     Object.assign(badge.style, {
-      fontSize: '9px', letterSpacing: '0.12em', textTransform: 'uppercase',
-      color: cc, marginBottom: '1px',
+      fontSize: '9px', letterSpacing: '.12em', textTransform: 'uppercase', color: cc, marginBottom: '1px',
     })
     badge.textContent = w.getCategory()
     parent.appendChild(badge)
 
-    // Name
     const name = document.createElement('div')
     Object.assign(name.style, {
-      fontSize: '14px', fontWeight: 'bold', letterSpacing: '0.04em',
-      color: '#fff', lineHeight: '1.2',
+      fontSize: '14px', fontWeight: 'bold', letterSpacing: '.04em', color: '#fff', lineHeight: '1.2',
     })
     name.textContent = w.getName()
     parent.appendChild(name)
 
-    // Stats row
     const statsRow = document.createElement('div')
     Object.assign(statsRow.style, {
-      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px',
-      marginTop: '6px',
+      display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2px 8px', marginTop: '6px',
     })
-
     const stats: [string, string][] = [
       ['DMG',  String(w.getDamage())],
       ['RoF',  String(w.getRoF())],
@@ -300,28 +475,41 @@ export class WeaponLoadoutMenu {
       const kEl = document.createElement('span')
       Object.assign(kEl.style, { fontSize: '10px', color: 'rgba(255,255,255,0.38)' })
       kEl.textContent = k
-
       const vEl = document.createElement('span')
       Object.assign(vEl.style, { fontSize: '10px', color: 'rgba(255,255,255,0.75)' })
       vEl.textContent = v
-
       statsRow.appendChild(kEl)
       statsRow.appendChild(vEl)
     }
     parent.appendChild(statsRow)
+
+    // Show equipped attachments as compact chips
+    const atts = w.getAttachments()
+    if (atts.size > 0) {
+      const chips = document.createElement('div')
+      Object.assign(chips.style, { display: 'flex', flexWrap: 'wrap', gap: '3px', marginTop: '5px' })
+      for (const att of atts.values()) {
+        const chip = document.createElement('span')
+        Object.assign(chip.style, {
+          fontSize: '8px', padding: '1px 5px', borderRadius: '2px',
+          background: 'rgba(100,220,100,0.12)', color: 'rgba(100,220,100,0.8)',
+          border: '1px solid rgba(100,220,100,0.25)', letterSpacing: '.06em',
+        })
+        chip.textContent = att.name
+        chips.appendChild(chip)
+      }
+      parent.appendChild(chips)
+    }
   }
 
   // ── Slot click logic ──────────────────────────────────────────────────────────
 
   private onSlotClick(slot: 0 | 1 | 2, _card: HTMLElement): void {
     if (this.selected === null) {
-      // Select this slot
       this.selected = slot
     } else if (this.selected === slot) {
-      // Deselect
       this.selected = null
     } else {
-      // Swap two equipped slots
       this.mgr.swapSlots(this.selected, slot)
       this.selected = null
     }

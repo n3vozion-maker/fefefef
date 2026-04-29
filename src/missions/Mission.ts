@@ -10,14 +10,16 @@ export interface MissionData {
 export class Mission {
   readonly id: string
   readonly title: string
+  readonly description: string
   objectives: Objective[]
   active = false
   complete = false
 
   constructor(data: MissionData) {
-    this.id = data.id
-    this.title = data.title
-    this.objectives = data.objectives.map(o => ({ ...o }))
+    this.id          = data.id
+    this.title       = data.title
+    this.description = data.description
+    this.objectives  = data.objectives.map(o => ({ ...o }))
   }
 
   completeObjective(id: string): void {

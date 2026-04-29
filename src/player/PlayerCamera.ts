@@ -20,9 +20,8 @@ export class PlayerCamera {
   private roll        = 0
   private targetRoll  = 0
 
-  // Recoil
-  private recoilPitch = 0
-  private recoilYaw   = 0
+  // Recoil (yaw-only drift — pitch is applied as a direct kick in applyRecoil)
+  private recoilYaw = 0
 
   // Screen shake
   private shakeX = 0
@@ -60,8 +59,10 @@ export class PlayerCamera {
 
   applyRecoil(pitchAmount: number, yawAmount: number): void {
     const mult = this.isADS ? 0.45 : 1.0
-    this.recoilPitch += pitchAmount * mult
-    this.recoilYaw   += (Math.random() - 0.5) * yawAmount * 2 * mult
+    // Direct one-shot kick — no accumulation, so rapid fire can't drive pitch to floor
+    this.pitch = Math.max(-Math.PI / 2 + 0.01,
+      Math.min(Math.PI / 2 - 0.01, this.pitch - pitchAmount * mult * 0.08))
+    this.recoilYaw += (Math.random() - 0.5) * yawAmount * 0.5 * mult
   }
 
   setWallTilt(side: 'left' | 'right' | null): void {
@@ -91,12 +92,10 @@ export class PlayerCamera {
     this.cam.fov = this.currentFov
     this.cam.updateProjectionMatrix()
 
-    // Recoil recovery
-    this.recoilPitch *= Math.max(0, 1 - RECOIL_RECOVER * dt)
-    this.recoilYaw   *= Math.max(0, 1 - RECOIL_RECOVER * dt)
-    this.pitch -= this.recoilPitch * dt * 60
-    this.yaw   -= this.recoilYaw   * dt * 60
-    this.pitch  = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch))
+    // Recoil yaw drift — decays over time for gentle side sway
+    this.recoilYaw *= Math.max(0, 1 - RECOIL_RECOVER * dt)
+    this.yaw       -= this.recoilYaw * dt * 60
+    this.pitch      = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch))
 
     // Roll
     this.roll += (this.targetRoll - this.roll) * Math.min(1, TILT_SPEED * dt)

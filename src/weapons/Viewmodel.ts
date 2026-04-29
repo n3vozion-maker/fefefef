@@ -1,9 +1,14 @@
 import * as THREE from 'three'
 import type { WeaponBase } from './WeaponBase'
 
-const STAND_POS  = new THREE.Vector3( 0.22, -0.18, -0.35)
-const ADS_POS    = new THREE.Vector3( 0.00, -0.12, -0.28)
+const STAND_POS  = new THREE.Vector3( 0.28, -0.22, -0.42)
+const ADS_POS    = new THREE.Vector3( 0.00, -0.13, -0.30)
 const LERP_SPEED = 14
+
+// Material palette
+const matBody   = new THREE.MeshStandardMaterial({ color: 0x2d3a1e, roughness: 0.85, metalness: 0.15, depthTest: false })
+const matMetal  = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.45, metalness: 0.85, depthTest: false })
+const matGrip   = new THREE.MeshStandardMaterial({ color: 0x1a1208, roughness: 0.95, metalness: 0.05, depthTest: false })
 
 export class Viewmodel {
   private group:    THREE.Group
@@ -17,19 +22,43 @@ export class Viewmodel {
     this.group = new THREE.Group()
     this.group.renderOrder = 999
 
-    const bodyGeo  = new THREE.BoxGeometry(0.06, 0.06, 0.22)
-    const barGeo   = new THREE.CylinderGeometry(0.012, 0.012, 0.18, 6)
-    const mat      = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, metalness: 0.5, depthTest: false })
+    // Receiver / upper body — wide and clearly visible
+    const bodyGeo = new THREE.BoxGeometry(0.075, 0.095, 0.38)
+    this.body = new THREE.Mesh(bodyGeo, matBody)
+    this.body.position.set(0, 0, 0)
 
-    this.body   = new THREE.Mesh(bodyGeo, mat)
-    this.barrel = new THREE.Mesh(barGeo,  mat)
+    // Handguard — slightly wider, sits in front
+    const hgGeo = new THREE.BoxGeometry(0.068, 0.068, 0.18)
+    const hg    = new THREE.Mesh(hgGeo, matMetal)
+    hg.position.set(0, 0, -0.22)
+
+    // Pistol grip — angled block below receiver
+    const gripGeo = new THREE.BoxGeometry(0.055, 0.12, 0.06)
+    const grip    = new THREE.Mesh(gripGeo, matGrip)
+    grip.position.set(0, -0.10, 0.10)
+    grip.rotation.x = 0.22
+
+    // Stock — box behind receiver
+    const stockGeo = new THREE.BoxGeometry(0.055, 0.07, 0.14)
+    const stock     = new THREE.Mesh(stockGeo, matBody)
+    stock.position.set(0, 0.005, 0.24)
+
+    // Barrel — long, metal, extends forward
+    const barGeo = new THREE.CylinderGeometry(0.018, 0.018, 0.36, 8)
+    this.barrel  = new THREE.Mesh(barGeo, matMetal)
     this.barrel.rotation.x = Math.PI / 2
-    this.barrel.position.set(0, 0, -0.2)
+    this.barrel.position.set(0, 0.01, -0.30)
 
-    this.muzzleFlash = new THREE.PointLight(0xff9900, 0, 6)
-    this.muzzleFlash.position.set(0, 0, -0.38)
+    // Suppressor hint / muzzle block
+    const muzzleGeo = new THREE.CylinderGeometry(0.026, 0.026, 0.07, 8)
+    const muzzle    = new THREE.Mesh(muzzleGeo, matMetal)
+    muzzle.rotation.x = Math.PI / 2
+    muzzle.position.set(0, 0.01, -0.47)
 
-    this.group.add(this.body, this.barrel, this.muzzleFlash)
+    this.muzzleFlash = new THREE.PointLight(0xff8800, 0, 8)
+    this.muzzleFlash.position.set(0, 0.01, -0.54)
+
+    this.group.add(this.body, hg, grip, stock, this.barrel, muzzle, this.muzzleFlash)
     this.group.position.copy(STAND_POS)
 
     camera.add(this.group)
@@ -39,8 +68,11 @@ export class Viewmodel {
     this.group.visible = weapon !== null
     if (!weapon) return
     const s = weapon.getStats()
-    // Scale viewmodel by weapon category
-    const scale = s.category === 'sniper' ? 1.3 : s.category === 'shotgun' ? 1.1 : 1.0
+    const scale = s.category === 'sniper'  ? 1.25
+                : s.category === 'shotgun' ? 1.08
+                : s.category === 'smg'     ? 0.88
+                : s.category === 'pistol'  ? 0.72
+                : 1.0
     this.group.scale.setScalar(scale)
   }
 

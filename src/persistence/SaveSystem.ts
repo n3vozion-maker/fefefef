@@ -14,6 +14,7 @@ export interface SaveData {
 export interface ProfileData {
   unlockedWeapons:     string[]
   unlockedAttachments: string[]
+  cash:                number
   totalPlaytime:       number
   kills:               number
   deaths:              number
@@ -49,6 +50,7 @@ export const SaveSystem = {
     return {
       unlockedWeapons:     ['rifle_m4a1', 'pistol_m9'],
       unlockedAttachments: [],
+      cash:                0,
       totalPlaytime:       0,
       kills:               0,
       deaths:              0,
