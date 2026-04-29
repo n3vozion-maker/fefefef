@@ -59,6 +59,10 @@ import { buildVegetation }       from './world/VegetationSystem'
 import { FullscreenMap }         from './hud/FullscreenMap'
 import { CashSystem }            from './economy/CashSystem'
 import { MissionBriefing }       from './hud/MissionBriefing'
+import { DamageNumbers }         from './effects/DamageNumbers'
+import { DropSystem }            from './world/DropSystem'
+import { WeatherSystem }         from './world/WeatherSystem'
+import { KillstreakSystem }      from './combat/KillstreakSystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -86,13 +90,18 @@ const unlocks     = new UnlockSystem()
 const ammoPickups = new AmmoPickupSystem(renderer.scene)
 const vehicleSys  = new VehicleSystem(renderer.scene, physics, renderer.camera)
 const cashSys        = new CashSystem()
-const loadoutMenu    = new WeaponLoadoutMenu(weaponMgr, cashSys)
+const killstreaks    = new KillstreakSystem(cashSys)
+const loadoutMenu    = new WeaponLoadoutMenu(weaponMgr, cashSys, grenades)
+void killstreaks
 const consumables    = new ConsumableInventory()
 const vehiclePickups = new VehiclePickupSystem(renderer.scene)
 const endgame        = new EndgameSystem(unlocks)
 const minimap        = new Minimap()
 const fullMap        = new FullscreenMap()
 const briefing       = new MissionBriefing()
+const dmgNumbers     = new DamageNumbers(renderer.camera)
+const drops          = new DropSystem(renderer.scene, cashSys)
+void drops
 const confetti       = new ConfettiSystem()
 const victoryScreen  = new VictoryScreen()
 void confetti   // listeners registered in constructor
@@ -227,6 +236,7 @@ scene.add(hemiLight)
 // ── Day/Night cycle ───────────────────────────────────────────────────────────
 
 const dayNight = new DayNightSystem(sun, ambientLight, hemiLight, scene, scene.fog as THREE.FogExp2)
+const weather  = new WeatherSystem(scene, scene.fog as THREE.FogExp2, renderer.camera)
 
 // ── Player flashlight (auto-activates at night) ────────────────────────────────
 
@@ -362,6 +372,13 @@ bus.on<{ origin: THREE.Vector3; damage: number }>('aiWeaponFired', (e) => {
       e.damage * Math.max(0, 1 - dist / 80) * DifficultySystem.enemyDamageMult,
     )
   }
+})
+
+// ── Drop system ammo pickup → active weapon reserve ───────────────────────────
+
+bus.on<{ amount: number }>('ammoDropPickup', (e) => {
+  weaponMgr.activeWeapon()?.addReserve(e.amount)
+  bus.emit('hudNotify', `+${e.amount} AMMO`)
 })
 
 // ── Enemy ammo drops → AmmoPickupSystem ──────────────────────────────────────
@@ -602,9 +619,12 @@ bus.on<number>('fixedUpdate', (dt) => {
   minimap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions(), wpTarget)
   fullMap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions())
 
-  // Day/night, ammo, vehicles, endgame
+  // Day/night, weather, ammo, vehicles, endgame
   dayNight.update(dt)
+  weather.update(dt, playerPos)
   briefing.update(dt)
+  dmgNumbers.update(dt)
+  drops.update(dt, playerPos)
 
   // Flashlight: ramp in as night falls (brightness < 0.25 → full on)
   const bright = dayNight.brightness

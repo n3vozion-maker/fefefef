@@ -97,6 +97,7 @@ export class AIAgent {
     if (this.isDead()) {
       this.deathPose = Math.floor(Math.random() * DEATH_POSES.length)
       bus.emit('agentDied', this.id)
+      bus.emit('agentDrops', { position: this.getPosition() })
       this.body.velocity.set(0, -2, 0)
     } else {
       // Visible hit flash

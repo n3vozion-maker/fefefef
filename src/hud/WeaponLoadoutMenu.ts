@@ -1,10 +1,11 @@
-import type { WeaponManager }  from '../weapons/WeaponManager'
-import type { WeaponBase }     from '../weapons/WeaponBase'
-import type { CashSystem }     from '../economy/CashSystem'
-import { AttachmentRegistry }  from '../weapons/AttachmentRegistry'
-import type { AttachmentDef }  from '../weapons/AttachmentRegistry'
-import type { AttachmentSlot } from '../weapons/WeaponRegistry'
-import { bus }                 from '../core/EventBus'
+import type { WeaponManager }   from '../weapons/WeaponManager'
+import type { WeaponBase }      from '../weapons/WeaponBase'
+import type { CashSystem }      from '../economy/CashSystem'
+import type { GrenadeSystem }   from '../combat/GrenadeSystem'
+import { AttachmentRegistry }   from '../weapons/AttachmentRegistry'
+import type { AttachmentDef }   from '../weapons/AttachmentRegistry'
+import type { AttachmentSlot }  from '../weapons/WeaponRegistry'
+import { bus }                  from '../core/EventBus'
 
 // ── Colours per category ──────────────────────────────────────────────────────
 
@@ -42,7 +43,7 @@ export class WeaponLoadoutMenu {
   private _open     = false
   private selected: 0 | 1 | 2 | null = null
 
-  constructor(private mgr: WeaponManager, private cash: CashSystem) {
+  constructor(private mgr: WeaponManager, private cash: CashSystem, private grenades: GrenadeSystem) {
     // ── Shared CSS ────────────────────────────────────────────────────────────
     const style = document.createElement('style')
     style.textContent = `
@@ -246,28 +247,71 @@ export class WeaponLoadoutMenu {
     for (const slot of SLOT_ORDER) {
       if (!supportedSlots.includes(slot)) continue
 
-      // Slot header
       const hdr = document.createElement('div')
       hdr.className = 'att-slot-header'
       hdr.textContent = SLOT_LABEL[slot]
       this.attPanel.appendChild(hdr)
 
       const equipped = w.getAttachment(slot)
-
-      // If equipped, show unequip button at top
       if (equipped) {
-        const row = this.makeAttachRow(equipped, 'equipped', w, slot)
-        this.attPanel.appendChild(row)
+        this.attPanel.appendChild(this.makeAttachRow(equipped, 'equipped', w, slot))
       }
-
-      // Shop items for this slot
       for (const att of AttachmentRegistry.bySlot(slot)) {
-        if (equipped?.id === att.id) continue   // already shown above
+        if (equipped?.id === att.id) continue
         const canAfford = this.cash.cash >= att.cost
-        const row = this.makeAttachRow(att, canAfford ? 'buy' : 'cant-afford', w, slot)
-        this.attPanel.appendChild(row)
+        this.attPanel.appendChild(this.makeAttachRow(att, canAfford ? 'buy' : 'cant-afford', w, slot))
       }
     }
+
+    // ── Supplies section ──────────────────────────────────────────────────────
+    const supHdr = document.createElement('div')
+    supHdr.className = 'att-slot-header'
+    supHdr.textContent = 'SUPPLIES'
+    this.attPanel.appendChild(supHdr)
+
+    this.attPanel.appendChild(this.makeSupplyRow(
+      'Frag Grenade', `${this.grenades.count} carried`,
+      '$50 · +1 grenade',
+      50,
+      () => { this.grenades.addGrenades(1); this.rebuildAttachPanel() },
+    ))
+  }
+
+  private makeSupplyRow(
+    name: string, subtext: string, desc: string,
+    cost: number, onBuy: () => void,
+  ): HTMLElement {
+    const row = document.createElement('div')
+    row.className = 'att-row'
+
+    const info = document.createElement('div')
+    Object.assign(info.style, { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1' })
+    const nameEl = document.createElement('div')
+    Object.assign(nameEl.style, { fontSize: '11px', color: '#d0d0d0' })
+    nameEl.textContent = name
+    const sub = document.createElement('div')
+    Object.assign(sub.style, { fontSize: '9px', color: 'rgba(255,255,255,0.38)' })
+    sub.textContent = subtext
+    info.appendChild(nameEl); info.appendChild(sub)
+    row.appendChild(info)
+
+    const right = document.createElement('div')
+    Object.assign(right.style, { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' })
+    const descEl = document.createElement('div')
+    Object.assign(descEl.style, { fontSize: '9px', color: 'rgba(255,255,255,0.35)' })
+    descEl.textContent = desc
+    right.appendChild(descEl)
+
+    const btn = document.createElement('button')
+    const canAfford = this.cash.cash >= cost
+    btn.className = 'att-buy-btn' + (canAfford ? '' : ' cant-afford')
+    btn.textContent = `BUY $${cost}`
+    if (canAfford) btn.addEventListener('click', () => {
+      if (this.cash.spend(cost)) onBuy()
+    })
+    right.appendChild(btn)
+    row.appendChild(right)
+    return row
   }
 
   private makeAttachRow(

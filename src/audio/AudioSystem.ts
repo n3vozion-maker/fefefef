@@ -304,6 +304,35 @@ const SOUNDS: Record<string, SoundFn> = {
     osc.connect(og); og.connect(dest); osc.start(t); osc.stop(t + 0.05)
   },
 
+  cash_pickup(ctx, dest) {
+    // Two ascending coin tones
+    const notes = [880, 1318.5]
+    notes.forEach((f, i) => {
+      const t2  = ctx.currentTime + i * 0.06
+      const osc = ctx.createOscillator(); osc.type = 'sine'; osc.frequency.value = f
+      const g   = ctx.createGain()
+      g.gain.setValueAtTime(0, t2)
+      g.gain.linearRampToValueAtTime(0.12, t2 + 0.010)
+      g.gain.exponentialRampToValueAtTime(0.001, t2 + 0.14)
+      osc.connect(g); g.connect(dest); osc.start(t2); osc.stop(t2 + 0.15)
+    })
+  },
+
+  killstreak(ctx, dest) {
+    // Punchy ascending triple beep
+    const notes = [660, 880, 1100]
+    notes.forEach((f, i) => {
+      const t2  = ctx.currentTime + i * 0.075
+      const osc = ctx.createOscillator(); osc.type = 'square'; osc.frequency.value = f
+      const lp  = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 1800
+      const g   = ctx.createGain()
+      g.gain.setValueAtTime(0, t2)
+      g.gain.linearRampToValueAtTime(0.09, t2 + 0.008)
+      g.gain.exponentialRampToValueAtTime(0.001, t2 + 0.09)
+      osc.connect(lp); lp.connect(g); g.connect(dest); osc.start(t2); osc.stop(t2 + 0.10)
+    })
+  },
+
   slide(ctx, dest) {
     const t  = ctx.currentTime
     const ns = noise(ctx, 0.35)
@@ -527,6 +556,8 @@ export class AudioSystem {
     bus.on('vehicleExited',  () => this.stopEngine())
     bus.on('vehicleDied',    () => this.stopEngine())
     bus.on('victoryAchieved',() => this.play('victory_fanfare'))
+    bus.on('dropPickup',     () => this.play('cash_pickup'))
+    bus.on('killstreak',     () => this.play('killstreak'))
     bus.on<number>('volumeChanged', (v) => this.setMasterVolume(v))
 
     bus.on<{ damage: number }>('damageEvent',  () => this.play('hit_flesh'))

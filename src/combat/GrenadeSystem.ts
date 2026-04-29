@@ -23,6 +23,10 @@ export class GrenadeSystem {
   count    = MAX_CARRY
   private grenades: Grenade[] = []
 
+  addGrenades(n: number): void {
+    this.count = Math.min(MAX_CARRY, this.count + n)
+  }
+
   constructor(private scene: THREE.Scene) {}
 
   throw(origin: THREE.Vector3, direction: THREE.Vector3): boolean {
