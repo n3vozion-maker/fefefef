@@ -63,6 +63,10 @@ import { DamageNumbers }         from './effects/DamageNumbers'
 import { DropSystem }            from './world/DropSystem'
 import { WeatherSystem }         from './world/WeatherSystem'
 import { KillstreakSystem }      from './combat/KillstreakSystem'
+import { UpgradeSystem }         from './player/UpgradeSystem'
+import { AIGrenadeSystem }       from './ai/AIGrenadeSystem'
+import { TracerSystem }          from './effects/TracerSystem'
+import { setPlayerDamageMult }   from './combat/DamageCalculator'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -90,8 +94,9 @@ const unlocks     = new UnlockSystem()
 const ammoPickups = new AmmoPickupSystem(renderer.scene)
 const vehicleSys  = new VehicleSystem(renderer.scene, physics, renderer.camera)
 const cashSys        = new CashSystem()
+const upgrades       = new UpgradeSystem()
 const killstreaks    = new KillstreakSystem(cashSys)
-const loadoutMenu    = new WeaponLoadoutMenu(weaponMgr, cashSys, grenades)
+const loadoutMenu    = new WeaponLoadoutMenu(weaponMgr, cashSys, grenades, upgrades)
 void killstreaks
 const consumables    = new ConsumableInventory()
 const vehiclePickups = new VehiclePickupSystem(renderer.scene)
@@ -257,7 +262,9 @@ for (const boss of allBosses) {
 }
 
 // Blood + effects systems
-const blood  = new BloodSystem(scene)
+const blood      = new BloodSystem(scene)
+const aiGrenades = new AIGrenadeSystem(scene)
+const tracers    = new TracerSystem(scene)
 void blood
 
 // Side quests + world chests + waypoints
@@ -369,7 +376,7 @@ bus.on<{ origin: THREE.Vector3; damage: number }>('aiWeaponFired', (e) => {
   const dist = e.origin.distanceTo(new THREE.Vector3(pp.x, pp.y, pp.z))
   if (dist < 45) {
     playerStats.applyDamage(
-      e.damage * Math.max(0, 1 - dist / 80) * DifficultySystem.enemyDamageMult,
+      e.damage * Math.max(0, 1 - dist / 80) * DifficultySystem.enemyDamageMult * upgrades.armorMult,
     )
   }
 })
@@ -419,6 +426,17 @@ bus.on<string>('actionDown', (a) => {
   } else if (veh.fuel < veh.maxFuel && consumables.fuelCanisters > 0) {
     if (consumables.useFuelCanister()) veh.refuel(30)
   }
+})
+
+// ── Slow-mo on boss kill ──────────────────────────────────────────────────────
+
+let timeScale   = 1
+let slowMoTimer = 0
+
+bus.on('bossDied', () => {
+  hud.flashBossKill()
+  timeScale   = 0.18
+  slowMoTimer = 1.8
 })
 
 // ── Game loop ─────────────────────────────────────────────────────────────────
@@ -471,12 +489,20 @@ bus.on('endgameStarted', () => {
   ai.spawnReinforcement(  750,  420, 5)
 })
 
+bus.on('upgradeApplied', () => {
+  playerStats.maxHealth  = DifficultySystem.config.playerMaxHp + upgrades.healthBonus
+  player.maxStamina      = 100 + upgrades.staminaBonus
+  setPlayerDamageMult(upgrades.damageMult)
+})
+
 bus.on('gameStarted', () => {
   const cfg = DifficultySystem.config
 
-  // Scale player max health
-  playerStats.maxHealth = cfg.playerMaxHp
-  playerStats.health    = cfg.playerMaxHp
+  // Apply upgrade bonuses on top of difficulty baseline
+  playerStats.maxHealth = cfg.playerMaxHp + upgrades.healthBonus
+  playerStats.health    = playerStats.maxHealth
+  player.maxStamina     = 100 + upgrades.staminaBonus
+  setPlayerDamageMult(upgrades.damageMult)
 
   // Scale all infantry health
   for (const agent of ai.getAgents()) {
@@ -523,6 +549,13 @@ bus.on<number>('fixedUpdate', (dt) => {
   // Gate everything while paused, dead, title screen showing, menus open, or map open
   if (pauseMenu.paused || gameOver.isVisible() || !titleScreen.isDismissed() || fullMap.isOpen()) return
 
+  // Slow-mo tick
+  if (slowMoTimer > 0) {
+    slowMoTimer -= dt
+    if (slowMoTimer <= 0) timeScale = 1
+  }
+  const gameDt = dt * timeScale
+
   const locked = input.isPointerLocked()
   const menuOpen = missionMenu.isOpen() || loadoutMenu.isOpen()
   lockPrompt.style.display = (locked || menuOpen) ? 'none' : ''
@@ -533,13 +566,13 @@ bus.on<number>('fixedUpdate', (dt) => {
     playerCam.applyMouseDelta(x, y)
   }
 
-  physics.step(dt)
-  player.update(dt)
-  playerStats.update(dt)
-  weaponMgr.update(dt)
-  combat.update(dt)
-  explosions.update(dt)
-  grenades.update(dt)
+  physics.step(gameDt)
+  player.update(gameDt)
+  playerStats.update(gameDt)
+  weaponMgr.update(gameDt)
+  combat.update(gameDt)
+  explosions.update(gameDt)
+  grenades.update(gameDt)
 
   // Grenade throw
   if (input.isHeld('grenade') && locked) {
@@ -567,9 +600,11 @@ bus.on<number>('fixedUpdate', (dt) => {
     player.body.position.x, player.body.position.y, player.body.position.z,
   )
 
-  world.update(playerPos, dt)
-  ai.update(dt, playerPos)
-  for (const boss of allBosses) boss.update(dt, playerPos)
+  world.update(playerPos, gameDt)
+  ai.update(gameDt, playerPos)
+  for (const boss of allBosses) boss.update(gameDt, playerPos)
+  aiGrenades.update(gameDt)
+  tracers.update(dt)
   blood.update(dt)
 
   // ── Chest / vehicle interaction prompt ───────────────────────────────────
@@ -636,7 +671,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   vehiclePickups.update(dt, playerPos, consumables)
   endgame.update(dt, playerPos)
   vehicleSys.update(
-    dt,
+    gameDt,
     input.isHeld('moveForward'), input.isHeld('moveBack'),
     input.isHeld('moveLeft'),    input.isHeld('moveRight'),
     input.mouseButtons.left,     input.mouseButtons.right,
@@ -648,7 +683,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   const inVehicle = vehicleSys.isOccupied
   if (!inVehicle) {
     const basePos = player.getCameraBase()
-    playerCam.update(dt, basePos, player.isMoving(), player.isSprinting(), player.getState())
+    playerCam.update(gameDt, basePos, player.isMoving(), player.isSprinting(), player.getState())
   }
 
   // Vehicle engine pitch

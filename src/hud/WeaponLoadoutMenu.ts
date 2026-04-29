@@ -2,6 +2,8 @@ import type { WeaponManager }   from '../weapons/WeaponManager'
 import type { WeaponBase }      from '../weapons/WeaponBase'
 import type { CashSystem }      from '../economy/CashSystem'
 import type { GrenadeSystem }   from '../combat/GrenadeSystem'
+import type { UpgradeSystem }   from '../player/UpgradeSystem'
+import { UPGRADE_DEFS }         from '../player/UpgradeSystem'
 import { AttachmentRegistry }   from '../weapons/AttachmentRegistry'
 import type { AttachmentDef }   from '../weapons/AttachmentRegistry'
 import type { AttachmentSlot }  from '../weapons/WeaponRegistry'
@@ -36,14 +38,23 @@ const SLOT_LABEL: Record<AttachmentSlot, string> = {
 // ── WeaponLoadoutMenu ─────────────────────────────────────────────────────────
 
 export class WeaponLoadoutMenu {
-  private overlay:  HTMLElement
-  private slotEls:  HTMLElement[] = []
-  private bpList:   HTMLElement
-  private attPanel: HTMLElement   // attachment shop panel
-  private _open     = false
-  private selected: 0 | 1 | 2 | null = null
+  private overlay:      HTMLElement
+  private slotEls:      HTMLElement[] = []
+  private bpList:       HTMLElement
+  private attPanel:     HTMLElement
+  private upgradePanel: HTMLElement
+  private rightMode:    'attachments' | 'upgrades' = 'attachments'
+  private tabAtt:       HTMLElement
+  private tabUpg:       HTMLElement
+  private _open         = false
+  private selected:     0 | 1 | 2 | null = null
 
-  constructor(private mgr: WeaponManager, private cash: CashSystem, private grenades: GrenadeSystem) {
+  constructor(
+    private mgr:      WeaponManager,
+    private cash:     CashSystem,
+    private grenades: GrenadeSystem,
+    private upgrades: UpgradeSystem,
+  ) {
     // ── Shared CSS ────────────────────────────────────────────────────────────
     const style = document.createElement('style')
     style.textContent = `
@@ -131,26 +142,61 @@ export class WeaponLoadoutMenu {
 
     this.overlay.appendChild(leftCol)
 
-    // ── Right column: attachment shop ─────────────────────────────────────────
+    // ── Right column: attachment shop + upgrades ───────────────────────────────
     const rightCol = document.createElement('div')
     Object.assign(rightCol.style, {
-      width: '330px', flexShrink: '0', display: 'flex', flexDirection: 'column',
+      width: '330px', flexShrink: '0', display: 'flex', flexDirection: 'column', gap: '0',
     })
 
-    const attHeader = document.createElement('div')
-    Object.assign(attHeader.style, {
-      fontSize: '10px', letterSpacing: '.2em', color: 'rgba(255,255,255,0.3)',
-      textTransform: 'uppercase', marginBottom: '14px',
+    // Tab bar
+    const tabBar = document.createElement('div')
+    Object.assign(tabBar.style, {
+      display: 'flex', gap: '6px', marginBottom: '14px',
     })
-    attHeader.textContent = 'Attachments'
-    rightCol.appendChild(attHeader)
 
+    const makeTab = (label: string, mode: 'attachments' | 'upgrades'): HTMLElement => {
+      const btn = document.createElement('button')
+      Object.assign(btn.style, {
+        flex: '1', padding: '5px 0', border: '1px solid rgba(255,255,255,0.15)',
+        background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)',
+        fontFamily: 'monospace', fontSize: '9px', letterSpacing: '.18em',
+        textTransform: 'uppercase', cursor: 'pointer', transition: 'all 0.15s',
+      })
+      btn.textContent = label
+      btn.addEventListener('click', () => {
+        this.rightMode = mode
+        this.updateTabs()
+        this.rebuildAttachPanel()
+        this.rebuildUpgradePanel()
+      })
+      return btn
+    }
+
+    this.tabAtt = makeTab('ATTACHMENTS', 'attachments')
+    this.tabUpg = makeTab('UPGRADES',    'upgrades')
+    tabBar.appendChild(this.tabAtt)
+    tabBar.appendChild(this.tabUpg)
+    rightCol.appendChild(tabBar)
+
+    // Attachment panel
     const attScroll = document.createElement('div')
-    Object.assign(attScroll.style, { overflowY: 'auto', maxHeight: '88vh' })
+    Object.assign(attScroll.style, { overflowY: 'auto', maxHeight: '85vh' })
     this.attPanel = document.createElement('div')
     Object.assign(this.attPanel.style, { display: 'flex', flexDirection: 'column' })
     attScroll.appendChild(this.attPanel)
     rightCol.appendChild(attScroll)
+
+    // Upgrade panel (hidden by default)
+    const upgScroll = document.createElement('div')
+    Object.assign(upgScroll.style, { overflowY: 'auto', maxHeight: '85vh', display: 'none' })
+    this.upgradePanel = document.createElement('div')
+    Object.assign(this.upgradePanel.style, { display: 'flex', flexDirection: 'column', gap: '0' })
+    upgScroll.appendChild(this.upgradePanel)
+    rightCol.appendChild(upgScroll)
+
+    // Store scroll refs for tab toggling
+    ;(this.tabAtt as unknown as Record<string, unknown>)['_scroll'] = attScroll
+    ;(this.tabUpg as unknown as Record<string, unknown>)['_scroll'] = upgScroll
 
     this.overlay.appendChild(rightCol)
     document.body.appendChild(this.overlay)
@@ -164,7 +210,13 @@ export class WeaponLoadoutMenu {
     })
 
     bus.on('loadoutChanged', () => { if (this._open) this.rebuild() })
-    bus.on<number>('cashChanged', () => { if (this._open) this.rebuildAttachPanel() })
+    bus.on<number>('cashChanged', () => {
+      if (!this._open) return
+      this.rebuildAttachPanel()
+      this.rebuildUpgradePanel()
+    })
+
+    this.updateTabs()
   }
 
   // ── Public ───────────────────────────────────────────────────────────────────
@@ -187,6 +239,19 @@ export class WeaponLoadoutMenu {
 
   // ── Build ─────────────────────────────────────────────────────────────────────
 
+  private updateTabs(): void {
+    const activeStyle   = { borderColor: 'rgba(255,215,0,0.6)', background: 'rgba(255,215,0,0.1)', color: '#ffd700' }
+    const inactiveStyle = { borderColor: 'rgba(255,255,255,0.15)', background: 'rgba(255,255,255,0.05)', color: 'rgba(255,255,255,0.5)' }
+
+    Object.assign(this.tabAtt.style, this.rightMode === 'attachments' ? activeStyle : inactiveStyle)
+    Object.assign(this.tabUpg.style, this.rightMode === 'upgrades'    ? activeStyle : inactiveStyle)
+
+    const attScroll = (this.tabAtt as HTMLElement & { _scroll?: HTMLElement })['_scroll']
+    const upgScroll = (this.tabUpg as HTMLElement & { _scroll?: HTMLElement })['_scroll']
+    if (attScroll) attScroll.style.display = this.rightMode === 'attachments' ? 'block' : 'none'
+    if (upgScroll) upgScroll.style.display = this.rightMode === 'upgrades'    ? 'block' : 'none'
+  }
+
   private rebuild(): void {
     for (let i = 0; i < 3; i++) this.refreshSlotCard(i as 0 | 1 | 2)
 
@@ -202,6 +267,94 @@ export class WeaponLoadoutMenu {
     }
 
     this.rebuildAttachPanel()
+    this.rebuildUpgradePanel()
+    this.updateTabs()
+  }
+
+  // ── Upgrade panel ─────────────────────────────────────────────────────────────
+
+  private rebuildUpgradePanel(): void {
+    this.upgradePanel.innerHTML = ''
+
+    // Cash balance
+    const cashRow = document.createElement('div')
+    Object.assign(cashRow.style, {
+      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+      marginBottom: '16px',
+    })
+    const cashLabel = document.createElement('div')
+    Object.assign(cashLabel.style, { fontSize: '9px', color: 'rgba(255,255,255,0.3)', letterSpacing: '.18em' })
+    cashLabel.textContent = 'AVAILABLE FUNDS'
+    const cashAmt = document.createElement('div')
+    Object.assign(cashAmt.style, { fontSize: '16px', fontWeight: 'bold', color: '#ffd700', letterSpacing: '.04em' })
+    cashAmt.textContent = `$${this.cash.cash.toLocaleString()}`
+    cashRow.appendChild(cashLabel); cashRow.appendChild(cashAmt)
+    this.upgradePanel.appendChild(cashRow)
+
+    for (const def of UPGRADE_DEFS) {
+      const tier    = this.upgrades.getTier(def.id)
+      const maxTier = this.upgrades.maxTier(def.id)
+      const cost    = this.upgrades.nextCost(def.id)
+      const canBuy  = tier < maxTier && this.cash.cash >= cost
+      const maxed   = tier >= maxTier
+
+      // Card
+      const card = document.createElement('div')
+      Object.assign(card.style, {
+        border: `1px solid ${maxed ? 'rgba(100,220,100,0.3)' : 'rgba(255,255,255,0.1)'}`,
+        borderRadius: '3px', padding: '12px 14px', marginBottom: '10px',
+        background: maxed ? 'rgba(100,220,100,0.05)' : 'rgba(255,255,255,0.03)',
+      })
+
+      // Header row
+      const hdr = document.createElement('div')
+      Object.assign(hdr.style, { display: 'flex', justifyContent: 'space-between', marginBottom: '8px' })
+      const lbl = document.createElement('div')
+      Object.assign(lbl.style, { fontSize: '10px', letterSpacing: '.16em', color: 'rgba(255,255,255,0.5)', textTransform: 'uppercase' })
+      lbl.textContent = def.label
+      const tierBadge = document.createElement('div')
+      Object.assign(tierBadge.style, { fontSize: '9px', color: maxed ? '#6fef8f' : 'rgba(255,255,255,0.3)', letterSpacing: '.1em' })
+      tierBadge.textContent = maxed ? 'MAXED' : `${tier} / ${maxTier}`
+      hdr.appendChild(lbl); hdr.appendChild(tierBadge)
+      card.appendChild(hdr)
+
+      // Tier pip bar
+      const pips = document.createElement('div')
+      Object.assign(pips.style, { display: 'flex', gap: '4px', marginBottom: '10px' })
+      for (let i = 0; i < maxTier; i++) {
+        const pip = document.createElement('div')
+        Object.assign(pip.style, {
+          flex: '1', height: '4px', borderRadius: '2px',
+          background: i < tier ? '#ffd700' : 'rgba(255,255,255,0.1)',
+        })
+        pips.appendChild(pip)
+      }
+      card.appendChild(pips)
+
+      if (!maxed) {
+        // Next tier description + buy button
+        const nextDef = def.tiers[tier]
+        const row = document.createElement('div')
+        Object.assign(row.style, { display: 'flex', justifyContent: 'space-between', alignItems: 'center' })
+        const desc = document.createElement('div')
+        Object.assign(desc.style, { fontSize: '10px', color: 'rgba(255,255,255,0.55)' })
+        desc.textContent = nextDef?.description ?? ''
+        const btn = document.createElement('button')
+        btn.className = 'att-buy-btn' + (canBuy ? '' : ' cant-afford')
+        btn.textContent = `BUY $${cost}`
+        if (canBuy) btn.addEventListener('click', () => {
+          if (this.cash.spend(cost)) {
+            this.upgrades.upgrade(def.id)
+            bus.emit('upgradeApplied', { id: def.id })
+            this.rebuildUpgradePanel()
+          }
+        })
+        row.appendChild(desc); row.appendChild(btn)
+        card.appendChild(row)
+      }
+
+      this.upgradePanel.appendChild(card)
+    }
   }
 
   // ── Attachment panel ──────────────────────────────────────────────────────────

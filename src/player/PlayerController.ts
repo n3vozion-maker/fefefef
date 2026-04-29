@@ -57,7 +57,8 @@ type MoveState = 'ground' | 'air' | 'wall' | 'vault' | 'slide'
 
 export class PlayerController {
   readonly body: CANNON.Body
-  stamina  = STAMINA_MAX
+  maxStamina = STAMINA_MAX
+  stamina    = STAMINA_MAX
   readonly tech: TechAbilities
 
   private state: MoveState = 'air'
@@ -458,8 +459,8 @@ export class PlayerController {
       this.input.isHeld('moveForward')
     )
     this.stamina = this._sprinting
-      ? Math.max(0,           this.stamina - STAMINA_DRAIN * dt)
-      : Math.min(STAMINA_MAX, this.stamina + STAMINA_REGEN * dt)
+      ? Math.max(0,                this.stamina - STAMINA_DRAIN * dt)
+      : Math.min(this.maxStamina,  this.stamina + STAMINA_REGEN * dt)
   }
 
   private isADS = false

@@ -50,6 +50,9 @@ export class AIAgent {
   private strafeDir:  1 | -1 = 1
   private strafeTimer = 0
 
+  // Grenade throw
+  private grenadeTimer = 5 + Math.random() * 8
+
   // Death
   private deathPose = 0
 
@@ -86,6 +89,7 @@ export class AIAgent {
     this.lastKnownPlayerPos = playerPos
     this.fireTimer    = Math.max(0, this.fireTimer - dt)
     this.strafeTimer  = Math.max(0, this.strafeTimer - dt)
+    this.grenadeTimer = Math.max(0, this.grenadeTimer - dt)
     if (this.retreatTimer > 0) this.retreatTimer -= dt
     this.tree.tick({ agent: this, playerPos, dt })
     this.syncMesh(dt)
@@ -113,6 +117,19 @@ export class AIAgent {
 
   getPosition(): THREE.Vector3 {
     return new THREE.Vector3(this.body.position.x, this.body.position.y, this.body.position.z)
+  }
+
+  tryThrowGrenade(playerPos: THREE.Vector3): void {
+    if (this.grenadeTimer > 0) return
+    const d = this.distanceTo(playerPos)
+    if (d < 8 || d > 28) return   // too close or too far
+    if (Math.random() > 0.28) {   // 28% chance when timer ready
+      this.grenadeTimer = 9 + Math.random() * 7
+      return
+    }
+    const origin = this.getPosition().add(new THREE.Vector3(0, 1.2, 0))
+    bus.emit('aiGrenadeThrown', { origin, target: playerPos.clone() })
+    this.grenadeTimer = 10 + Math.random() * 8
   }
 
   tryShoot(playerPos: THREE.Vector3): void {
@@ -158,6 +175,7 @@ export class AIAgent {
       }
 
       ctx.agent.tryShoot(ctx.playerPos)
+      ctx.agent.tryThrowGrenade(ctx.playerPos)
       return 'running'
     })
 

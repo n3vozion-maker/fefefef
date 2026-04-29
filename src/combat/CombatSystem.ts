@@ -56,13 +56,20 @@ export class CombatSystem {
     )
 
     const result = this.physics.raycast(from, to)
+
+    // Tracer: fire from origin to actual hit or max range
+    const endPt = result
+      ? new THREE.Vector3(result.hitPointWorld.x, result.hitPointWorld.y, result.hitPointWorld.z)
+      : new THREE.Vector3(
+          p.origin.x + p.direction.x * maxRange,
+          p.origin.y + p.direction.y * maxRange,
+          p.origin.z + p.direction.z * maxRange,
+        )
+    bus.emit('bulletTracer', { from: p.origin, to: endPt, category: p.weapon.getCategory() })
+
     if (!result) return
 
-    const hitPt = new THREE.Vector3(
-      result.hitPointWorld.x,
-      result.hitPointWorld.y,
-      result.hitPointWorld.z,
-    )
+    const hitPt = endPt
 
     // Check if an AI agent was hit
     const body = result.body as unknown as { agentId?: string; armour?: number }

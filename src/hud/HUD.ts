@@ -46,6 +46,10 @@ export class HUD {
   private toastContainer: HTMLElement
   private toasts: Array<{ el: HTMLElement; timer: number }> = []
 
+  // Boss kill slow-mo overlay
+  private bossKillOverlay: HTMLElement
+  private bossKillTimer   = 0
+
   // Interact prompt
   private interactPromptEl: HTMLElement
 
@@ -268,6 +272,26 @@ export class HUD {
       width: '34px', height: '3px', borderRadius: '2px', background: '#e040fb',
     })
 
+    // ── Boss kill slow-mo overlay ──────────────────────────────────────────────
+    this.bossKillOverlay = this.el(root, {
+      position: 'absolute', inset: '0',
+      background: 'rgba(140,0,0,0)',
+      display: 'flex', flexDirection: 'column',
+      alignItems: 'center', justifyContent: 'center',
+      pointerEvents: 'none',
+    })
+    const bossKillLabel = document.createElement('div')
+    Object.assign(bossKillLabel.style, {
+      fontSize: '28px', fontWeight: '900', letterSpacing: '.4em',
+      color: '#ff1a1a', textTransform: 'uppercase',
+      textShadow: '0 0 30px rgba(255,0,0,0.8), 0 2px 0 #500',
+      opacity: '0', transition: 'opacity 0.15s',
+      fontFamily: 'monospace',
+    })
+    bossKillLabel.id    = '__bossKillLabel'
+    bossKillLabel.textContent = 'BOSS ELIMINATED'
+    this.bossKillOverlay.appendChild(bossKillLabel)
+
     // ── Interact prompt ────────────────────────────────────────────────────────
     this.interactPromptEl = this.el(root, {
       position: 'absolute', bottom: '72px', left: '50%',
@@ -434,6 +458,20 @@ export class HUD {
       if (k.timer <= 0)  { k.el.remove(); this.killLines.splice(i, 1) }
     }
 
+    // Boss kill slow-mo overlay
+    if (this.bossKillTimer > 0) {
+      this.bossKillTimer -= dt
+      const frac = Math.max(0, this.bossKillTimer / 2.0)
+      const redA = (frac * 0.28).toFixed(2)
+      this.bossKillOverlay.style.background = `rgba(140,0,0,${redA})`
+      const label = document.getElementById('__bossKillLabel')
+      if (label) label.style.opacity = frac > 0.5 ? '1' : (frac * 2).toFixed(2)
+      if (this.bossKillTimer <= 0) {
+        this.bossKillOverlay.style.background = 'rgba(140,0,0,0)'
+        if (label) label.style.opacity = '0'
+      }
+    }
+
     // Critical HP — red heartbeat vignette
     if (hpPct < 25) {
       this.hpCritPulse += dt * 3.8
@@ -446,6 +484,12 @@ export class HUD {
       this.vignetteEl.style.background =
         'radial-gradient(ellipse at center, transparent 55%, rgba(0,0,0,0.75) 100%)'
     }
+  }
+
+  flashBossKill(): void {
+    this.bossKillTimer = 2.0
+    const label = document.getElementById('__bossKillLabel')
+    if (label) label.style.opacity = '1'
   }
 
   updateInteractPrompt(text: string | null): void {
