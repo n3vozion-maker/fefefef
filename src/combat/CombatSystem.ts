@@ -88,7 +88,38 @@ export class CombatSystem {
       // Terrain / structure hit — dust puff + audio
       this.spawnImpact(hitPt, result.hitNormalWorld as unknown as THREE.Vector3)
       bus.emit('bulletImpact', { position: hitPt })
+
+      // Bullet penetration through thin cover — secondary ray, 50% damage
+      this.processPenetration(p, hitPt, maxRange - result.distance)
     }
+  }
+
+  private processPenetration(p: WeaponFiredPayload, from: THREE.Vector3, remaining: number): void {
+    if (remaining < 2) return
+    const cat = p.weapon.getCategory()
+    if (cat === 'shotgun' || cat === 'explosive' || cat === 'flag') return
+
+    const eps   = 0.18
+    const start = from.clone().addScaledVector(p.direction, eps)
+    const end   = from.clone().addScaledVector(p.direction, Math.min(remaining, 30))
+
+    const f2 = new CANNON.Vec3(start.x, start.y, start.z)
+    const t2 = new CANNON.Vec3(end.x, end.y, end.z)
+    const r2 = this.physics.raycast(f2, t2)
+    if (!r2) return
+
+    const body2 = r2.body as unknown as { agentId?: string }
+    if (!body2?.agentId) return
+
+    const stats   = p.weapon.getStats()
+    const dmg     = calculateDamage(
+      (p.damage ?? stats.damage) * 0.5,
+      r2.distance,
+      stats.effectiveRange,
+      0,
+    )
+    const hitPt2 = new THREE.Vector3(r2.hitPointWorld.x, r2.hitPointWorld.y, r2.hitPointWorld.z)
+    bus.emit('damageEvent', { agentId: body2.agentId, damage: dmg, position: hitPt2 })
   }
 
   private spawnImpact(pos: THREE.Vector3, _normal?: THREE.Vector3): void {

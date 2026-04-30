@@ -149,7 +149,8 @@ export class PlayerController {
   getWallSide():  'left' | 'right' | null { return this.state === 'wall' ? this.wallSide : null }
   isMoving():    boolean { return this._moving }
   isSprinting(): boolean { return this._sprinting }
-  isProne():     boolean { return this.state === 'prone' }
+  isProne():     boolean { return this.state === 'prone'  }
+  isCrouching(): boolean { return this.state === 'ground' && this.input.isHeld('crouch') }
   getState():    MoveState { return this.state }
 
   // ── Ground state ─────────────────────────────────────────────────────────────

@@ -8,6 +8,7 @@ import { AttachmentRegistry }   from '../weapons/AttachmentRegistry'
 import type { AttachmentDef }   from '../weapons/AttachmentRegistry'
 import type { AttachmentSlot }  from '../weapons/WeaponRegistry'
 import { bus }                  from '../core/EventBus'
+import { ghillie }              from '../effects/GhillieSystem'
 
 // ── Colours per category ──────────────────────────────────────────────────────
 
@@ -428,6 +429,54 @@ export class WeaponLoadoutMenu {
       50,
       () => { this.grenades.addGrenades(1); this.rebuildAttachPanel() },
     ))
+
+    // Ghillie suit — equip/unequip toggle
+    const ghillieOwned = ghillie.equipped
+    this.attPanel.appendChild(this.makeGhillieRow(ghillieOwned))
+  }
+
+  private makeGhillieRow(owned: boolean): HTMLElement {
+    const row = document.createElement('div')
+    row.className = 'att-row'
+
+    const info = document.createElement('div')
+    Object.assign(info.style, { display: 'flex', flexDirection: 'column', gap: '2px', flex: '1' })
+    const nameEl = document.createElement('div')
+    Object.assign(nameEl.style, { fontSize: '11px', color: owned ? '#6fef8f' : '#d0d0d0' })
+    nameEl.textContent = 'Ghillie Suit'
+    const sub = document.createElement('div')
+    Object.assign(sub.style, { fontSize: '9px', color: 'rgba(255,255,255,0.38)' })
+    sub.textContent = owned ? '✓ EQUIPPED — detection –65% while prone' : 'Detection –65% while prone'
+    info.appendChild(nameEl); info.appendChild(sub)
+    row.appendChild(info)
+
+    const right = document.createElement('div')
+    Object.assign(right.style, { display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '3px' })
+
+    if (owned) {
+      const btn = document.createElement('button')
+      btn.className = 'att-buy-btn unequip'
+      btn.textContent = 'REMOVE'
+      btn.addEventListener('click', () => { ghillie.unequip(); this.rebuildAttachPanel() })
+      right.appendChild(btn)
+    } else {
+      const costEl = document.createElement('div')
+      Object.assign(costEl.style, { fontSize: '10px', color: '#ffd700', letterSpacing: '.05em' })
+      costEl.textContent = '$300'
+      right.appendChild(costEl)
+
+      const canAfford = this.cash.cash >= 300
+      const btn = document.createElement('button')
+      btn.className = 'att-buy-btn' + (canAfford ? '' : ' cant-afford')
+      btn.textContent = 'BUY $300'
+      if (canAfford) btn.addEventListener('click', () => {
+        if (this.cash.spend(300)) { ghillie.equip(); this.rebuildAttachPanel() }
+      })
+      right.appendChild(btn)
+    }
+
+    row.appendChild(right)
+    return row
   }
 
   private makeSupplyRow(

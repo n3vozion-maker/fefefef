@@ -344,6 +344,46 @@ const SOUNDS: Record<string, SoundFn> = {
     g.gain.setValueAtTime(0.1, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.32)
     ns.connect(bp); bp.connect(g); g.connect(dest); ns.start(t)
   },
+
+  // Hit confirmation — sharp high tick on damageEvent
+  hit_confirm(ctx, dest) {
+    const t   = ctx.currentTime
+    const osc = ctx.createOscillator(); osc.type = 'sine'
+    osc.frequency.setValueAtTime(1800, t)
+    osc.frequency.exponentialRampToValueAtTime(900, t + 0.045)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.18, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.05)
+    osc.connect(g); g.connect(dest); osc.start(t); osc.stop(t + 0.06)
+  },
+
+  // Shell casing metallic tink on floor bounce
+  shell_bounce(ctx, dest) {
+    const t  = ctx.currentTime
+    const ns = noise(ctx, 0.012)
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'
+    bp.frequency.value = 3800; bp.Q.value = 18
+    const g  = ctx.createGain()
+    g.gain.setValueAtTime(0.06, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.01)
+    ns.connect(bp); bp.connect(g); g.connect(dest); ns.start(t)
+  },
+
+  // Airstrike distant jet pass
+  airstrike_incoming(ctx, dest) {
+    const t   = ctx.currentTime
+    // Jet rumble — Doppler-style rising then falling noise
+    const ns  = noise(ctx, 2.0)
+    const lp  = ctx.createBiquadFilter(); lp.type = 'lowpass'
+    lp.frequency.setValueAtTime(200, t)
+    lp.frequency.linearRampToValueAtTime(3200, t + 0.6)
+    lp.frequency.linearRampToValueAtTime(400, t + 1.4)
+    lp.frequency.exponentialRampToValueAtTime(80, t + 2.0)
+    const g = ctx.createGain()
+    g.gain.setValueAtTime(0.0,  t)
+    g.gain.linearRampToValueAtTime(0.35, t + 0.3)
+    g.gain.setValueAtTime(0.35, t + 1.0)
+    g.gain.exponentialRampToValueAtTime(0.001, t + 2.0)
+    ns.connect(lp); lp.connect(g); g.connect(dest); ns.start(t)
+  },
 }
 
 // ── AudioSystem ───────────────────────────────────────────────────────────────
@@ -577,8 +617,13 @@ export class AudioSystem {
     bus.on('killstreak',     () => this.play('killstreak'))
     bus.on<number>('volumeChanged', (v) => this.setMasterVolume(v))
 
-    bus.on<{ damage: number }>('damageEvent',  () => this.play('hit_flesh'))
+    bus.on<{ damage: number }>('damageEvent', () => {
+      this.play('hit_flesh')
+      this.play('hit_confirm')   // audible hit confirmation tick
+    })
     bus.on('bulletImpact', () => this.play('hit_surface'))
+
+    bus.on('airstrikeIncoming', () => this.play('airstrike_incoming'))
 
     bus.on<{ origin?: unknown }>('explosion',     () => this.play('explosion'))
     bus.on<{ origin?: unknown }>('grenadeThrown', () => this.play('explosion'))

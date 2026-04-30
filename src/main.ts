@@ -71,6 +71,8 @@ import { KillcamSystem }         from './hud/KillcamSystem'
 import { SettingsMenu }          from './hud/SettingsMenu'
 import { ExplosiveBarrelSystem } from './world/ExplosiveBarrelSystem'
 import { NightVisionSystem }     from './effects/NightVisionSystem'
+import { ShellEjectionSystem }   from './effects/ShellEjectionSystem'
+import { AirstrikeSystem }       from './combat/AirstrikeSystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -268,14 +270,17 @@ for (const boss of allBosses) {
 }
 
 // Blood + effects systems
-const blood      = new BloodSystem(scene)
-const aiGrenades = new AIGrenadeSystem(scene)
-const tracers    = new TracerSystem(scene)
-const barrels    = new ExplosiveBarrelSystem(scene, physics)
+const blood       = new BloodSystem(scene)
+const aiGrenades  = new AIGrenadeSystem(scene)
+const tracers     = new TracerSystem(scene)
+const barrels     = new ExplosiveBarrelSystem(scene, physics)
 const nightVision = new NightVisionSystem(renderer.getCanvas(), ambientLight, hemiLight)
+const shells      = new ShellEjectionSystem(scene)
+const airstrike   = new AirstrikeSystem(scene)
 void blood
 void barrels
 void nightVision
+void shells
 
 // Side quests + world chests + waypoints
 const sqSystem    = new SideQuestSystem()
@@ -348,7 +353,7 @@ Object.assign(lockPrompt.style, {
   background: 'rgba(0,0,0,0.65)', padding: '12px 24px', borderRadius: '4px',
   pointerEvents: 'none', lineHeight: '1.8',
 })
-lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C crouch · Z prone · Space jump/vault · Ctrl dash · Q parry · G grenade · 1/2/3 weapons · Tab loadout · M missions · J side quests · E enter vehicle · F exit · N night vision · I settings · ESC pause</span>'
+lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C crouch · Z prone · Space jump/vault · Ctrl dash · Q parry · G grenade · Crouch+G airstrike · 1/2/3 weapons · Tab loadout · M missions · J side quests · E enter vehicle · F exit · N NV · I settings · ESC pause</span>'
 document.body.appendChild(lockPrompt)
 
 // Dev label (hidden by default — toggle with F3)
@@ -591,10 +596,16 @@ bus.on<number>('fixedUpdate', (dt) => {
   explosions.update(gameDt)
   grenades.update(gameDt)
 
-  // Grenade throw
+  // Grenade / airstrike
   if (input.isHeld('grenade') && locked) {
-    if (grenades.throw(playerCam.getMuzzleOrigin(), playerCam.getMuzzleDirection())) {
-      // Consume the hold (single throw per press handled by actionDown debounce)
+    if (player.isCrouching() && airstrike.available) {
+      // Crouch + G = airstrike smoke flare at 60 m ahead
+      const target = playerCam.getMuzzleOrigin()
+        .addScaledVector(playerCam.getMuzzleDirection(), 60)
+      airstrike.call(target)
+      bus.emit('airstrikeIncoming', {})
+    } else {
+      grenades.throw(playerCam.getMuzzleOrigin(), playerCam.getMuzzleDirection())
     }
   }
 
@@ -624,6 +635,8 @@ bus.on<number>('fixedUpdate', (dt) => {
   aiGrenades.update(gameDt)
   tracers.update(dt)
   blood.update(dt)
+  shells.update(gameDt)
+  airstrike.update(gameDt)
 
   // ── Chest / vehicle interaction prompt ───────────────────────────────────
   const chestPrompt = chests.update(dt, playerPos)

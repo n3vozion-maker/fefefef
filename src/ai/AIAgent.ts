@@ -5,6 +5,7 @@ import { selector, sequence, condition, action, type BTNode } from './BehaviourT
 import type { AlertState }    from './SensorSystem'
 import type { PhysicsWorld }  from '../physics/PhysicsWorld'
 import type { SquadRole }     from './SquadManager'
+import { ghillie }            from '../effects/GhillieSystem'
 
 const AGENT_HEIGHT  = 1.8
 const AGENT_RADIUS  = 0.3
@@ -174,8 +175,11 @@ export class AIAgent {
     const isDead   = condition((c) => (c as Ctx).agent.isDead())
     const isCombat = condition((c) => (c as Ctx).agent.alertState === 'combat')
     const canSee   = condition((c) => {
-      const ctx = c as Ctx
-      return ctx.agent.distanceTo(ctx.playerPos) < ctx.agent._stats.shootRange
+      const ctx   = c as Ctx
+      const range = ghillie.active
+        ? Math.min(10, ctx.agent._stats.shootRange)
+        : ctx.agent._stats.shootRange
+      return ctx.agent.distanceTo(ctx.playerPos) < range
     })
 
     const doShoot = action((c) => {
