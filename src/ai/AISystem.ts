@@ -163,6 +163,8 @@ export class AISystem {
     bus.on<string>('agentDied', (id) => this.onAgentDied(id))
     bus.on('endgameStarted', () => { this.endgame = true })
 
+    bus.on<boolean>('nvChanged', (active) => this.setNVGlow(active))
+
     // Alert nearby agents when player fires — suppressor limits radius to 10m
     bus.on<WeaponFiredPayload>('weaponFired', (p) => {
       const r = p.suppressed ? 10 : 44
@@ -298,6 +300,29 @@ export class AISystem {
   /** All special enemies as objects with a public `hp` field */
   getSpecialEnemies(): Array<{ hp: number; alive: boolean }> {
     return [...this.snipers, ...this.robots, ...this.drones, ...this.tanks]
+  }
+
+  /** Toggle NV emissive glow on all infantry meshes */
+  private setNVGlow(active: boolean): void {
+    const emissive = active ? 0x00ff55 : 0x000000
+    const intensity = active ? 0.45 : 0
+    for (const agent of this.agents) {
+      if (!agent.mesh) continue
+      agent.mesh.traverse((child) => {
+        if (child instanceof THREE.Mesh) {
+          const mat = child.material
+          if (Array.isArray(mat)) {
+            mat.forEach(m => {
+              if (m instanceof THREE.MeshStandardMaterial) {
+                m.emissive.setHex(emissive); m.emissiveIntensity = intensity
+              }
+            })
+          } else if (mat instanceof THREE.MeshStandardMaterial) {
+            mat.emissive.setHex(emissive); mat.emissiveIntensity = intensity
+          }
+        }
+      })
+    }
   }
 
   /** Returns world positions of all living enemies (for minimap) */

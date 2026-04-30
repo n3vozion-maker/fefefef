@@ -70,6 +70,7 @@ import { setPlayerDamageMult }   from './combat/DamageCalculator'
 import { KillcamSystem }         from './hud/KillcamSystem'
 import { SettingsMenu }          from './hud/SettingsMenu'
 import { ExplosiveBarrelSystem } from './world/ExplosiveBarrelSystem'
+import { NightVisionSystem }     from './effects/NightVisionSystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -271,8 +272,10 @@ const blood      = new BloodSystem(scene)
 const aiGrenades = new AIGrenadeSystem(scene)
 const tracers    = new TracerSystem(scene)
 const barrels    = new ExplosiveBarrelSystem(scene, physics)
+const nightVision = new NightVisionSystem(renderer.getCanvas(), ambientLight, hemiLight)
 void blood
 void barrels
+void nightVision
 
 // Side quests + world chests + waypoints
 const sqSystem    = new SideQuestSystem()
@@ -345,7 +348,7 @@ Object.assign(lockPrompt.style, {
   background: 'rgba(0,0,0,0.65)', padding: '12px 24px', borderRadius: '4px',
   pointerEvents: 'none', lineHeight: '1.8',
 })
-lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C crouch · Z prone · Space jump/vault · Ctrl dash · Q parry · G grenade · 1/2/3 weapons · Tab loadout · M missions · J side quests · E enter vehicle · F exit · I settings · ESC pause</span>'
+lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C crouch · Z prone · Space jump/vault · Ctrl dash · Q parry · G grenade · 1/2/3 weapons · Tab loadout · M missions · J side quests · E enter vehicle · F exit · N night vision · I settings · ESC pause</span>'
 document.body.appendChild(lockPrompt)
 
 // Dev label (hidden by default — toggle with F3)

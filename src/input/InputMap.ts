@@ -3,7 +3,7 @@ export type Action =
   | 'jump' | 'sprint' | 'crouch' | 'prone' | 'fire' | 'aim'
   | 'reload' | 'interact' | 'melee' | 'grenade'
   | 'weapon1' | 'weapon2' | 'sidearm'
-  | 'dash' | 'parry'
+  | 'dash' | 'parry' | 'nightVision'
   | 'quicksave' | 'vehicleExit'
 
 export const defaultKeyMap: Record<string, Action> = {
@@ -26,4 +26,5 @@ export const defaultKeyMap: Record<string, Action> = {
   Digit3: 'sidearm',
   F5:     'quicksave',
   KeyF:   'vehicleExit',
+  KeyN:   'nightVision',
 }
