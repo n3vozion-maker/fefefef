@@ -50,10 +50,12 @@ const HALF_TOTAL = TOTAL_H / 2
 const STAND_CAM  =  BARREL_H / 2 + CAP_R - 0.1   //  0.80 m above body centre → eye at ~1.7 m
 const CROUCH_CAM = -0.20                           // -0.20 m above body centre
 const SLIDE_CAM  = -0.35                           // extra-low during slide
+const PRONE_CAM  = -0.52                           // ground-level eye height
+const PRONE_SPEED = 2.2
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
-type MoveState = 'ground' | 'air' | 'wall' | 'vault' | 'slide'
+type MoveState = 'ground' | 'air' | 'wall' | 'vault' | 'slide' | 'prone'
 
 export class PlayerController {
   readonly body: CANNON.Body
@@ -100,6 +102,7 @@ export class PlayerController {
     bus.on<string>('actionDown', (action) => {
       if (action === 'jump')   this.handleJump()
       if (action === 'crouch') this.handleCrouchDown()
+      if (action === 'prone')  this.handleProne()
       if (action === 'aim')    this.setADS(true)
       if (action === 'dash')   this.handleDash()
       if (action === 'parry')  this.handleParry()
@@ -122,6 +125,7 @@ export class PlayerController {
       case 'wall':   this.tickWall(dt);    break
       case 'vault':  this.tickVault(dt);   break
       case 'slide':  this.tickSlide(dt);   break
+      case 'prone':  this.tickProne(dt);   break
     }
   }
 
@@ -130,6 +134,7 @@ export class PlayerController {
     switch (this.state) {
       case 'slide': offsetY = SLIDE_CAM;  break
       case 'wall':  offsetY = STAND_CAM;  break
+      case 'prone': offsetY = PRONE_CAM;  break
       default:
         offsetY = this.input.isHeld('crouch') && this.state === 'ground'
           ? CROUCH_CAM : STAND_CAM
@@ -144,6 +149,7 @@ export class PlayerController {
   getWallSide():  'left' | 'right' | null { return this.state === 'wall' ? this.wallSide : null }
   isMoving():    boolean { return this._moving }
   isSprinting(): boolean { return this._sprinting }
+  isProne():     boolean { return this.state === 'prone' }
   getState():    MoveState { return this.state }
 
   // ── Ground state ─────────────────────────────────────────────────────────────
@@ -339,6 +345,26 @@ export class PlayerController {
 
   private handleCrouchUp(): void {
     // crouching is read directly from input.isHeld in tickGround
+  }
+
+  private handleProne(): void {
+    if (this.state === 'ground' || this.state === 'slide') {
+      this.state = 'prone'
+      bus.emit('proneChanged', true)
+    } else if (this.state === 'prone') {
+      this.state = 'ground'
+      bus.emit('proneChanged', false)
+    }
+  }
+
+  private tickProne(dt: number): void {
+    if (!this.checkGround()) { this.state = 'air'; bus.emit('proneChanged', false); return }
+    this._sprinting = false
+    this.tickStamina(dt)
+    const dir = this.inputDir()
+    this._moving = dir.lengthSq() > 0
+    this.body.velocity.x = dir.x * PRONE_SPEED
+    this.body.velocity.z = dir.z * PRONE_SPEED
   }
 
   private handleDash(): void {

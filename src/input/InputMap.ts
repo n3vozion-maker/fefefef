@@ -1,6 +1,6 @@
 export type Action =
   | 'moveForward' | 'moveBack' | 'moveLeft' | 'moveRight'
-  | 'jump' | 'sprint' | 'crouch' | 'fire' | 'aim'
+  | 'jump' | 'sprint' | 'crouch' | 'prone' | 'fire' | 'aim'
   | 'reload' | 'interact' | 'melee' | 'grenade'
   | 'weapon1' | 'weapon2' | 'sidearm'
   | 'dash' | 'parry'
@@ -14,6 +14,7 @@ export const defaultKeyMap: Record<string, Action> = {
   Space:      'jump',
   ShiftLeft:  'sprint',
   KeyC:       'crouch',
+  KeyZ:       'prone',
   KeyR:       'reload',
   KeyE:       'interact',
   KeyV:       'melee',

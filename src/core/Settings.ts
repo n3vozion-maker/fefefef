@@ -6,6 +6,8 @@ export interface GameSettings {
   adsFov:              number
   adsSpeedMultiplier:  number
   masterVolume:        number
+  musicVolume:         number
+  sfxVolume:           number
 }
 
 const DEFAULTS: GameSettings = {
@@ -14,6 +16,8 @@ const DEFAULTS: GameSettings = {
   adsFov:             60,
   adsSpeedMultiplier: 0.7,
   masterVolume:       1.0,
+  musicVolume:        1.0,
+  sfxVolume:          1.0,
 }
 
 function persist(s: GameSettings): void {

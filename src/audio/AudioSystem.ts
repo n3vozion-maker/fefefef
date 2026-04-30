@@ -1,4 +1,5 @@
 import { bus }          from '../core/EventBus'
+import { Settings }     from '../core/Settings'
 import { MusicManager } from './MusicManager'
 
 // ── Helpers ───────────────────────────────────────────────────────────────────
@@ -350,6 +351,8 @@ const SOUNDS: Record<string, SoundFn> = {
 export class AudioSystem {
   private ctx:        AudioContext | null = null
   private masterGain: GainNode    | null = null
+  private sfxGain:    GainNode    | null = null
+  private musicGain:  GainNode    | null = null
   readonly music:     MusicManager
 
   // Vehicle engine continuous sound
@@ -384,17 +387,36 @@ export class AudioSystem {
     if (!this.ctx) {
       this.ctx        = new AudioContext()
       this.masterGain = this.ctx.createGain()
-      this.masterGain.gain.value = 0.75
+      this.sfxGain    = this.ctx.createGain()
+      this.musicGain  = this.ctx.createGain()
+      this.masterGain.gain.value = Settings.masterVolume
+      this.sfxGain.gain.value    = Settings.sfxVolume
+      this.musicGain.gain.value  = Settings.musicVolume
+      this.sfxGain.connect(this.masterGain)
+      this.musicGain.connect(this.masterGain)
       this.masterGain.connect(this.ctx.destination)
-      this.music.start(this.ctx, this.masterGain)
+      this.music.start(this.ctx, this.musicGain)
     }
     return this.ctx
+  }
+
+  setMasterVolume(v: number): void {
+    Settings.masterVolume = v
+    if (this.masterGain) this.masterGain.gain.value = v
+  }
+  setMusicVolume(v: number): void {
+    Settings.musicVolume = v
+    if (this.musicGain) this.musicGain.gain.value = v
+  }
+  setSfxVolume(v: number): void {
+    Settings.sfxVolume = v
+    if (this.sfxGain) this.sfxGain.gain.value = v
   }
 
   play(id: string): void {
     try {
       const ctx  = this.ensureCtx()
-      const dest = this.masterGain ?? ctx.destination
+      const dest = this.sfxGain ?? this.masterGain ?? ctx.destination
       const fn   = SOUNDS[id]
       if (fn) fn(ctx, dest)
     } catch { /* audio errors are non-fatal */ }
@@ -487,11 +509,6 @@ export class AudioSystem {
       const vol = 0.07 + Math.min(speed, 28) * 0.001
       this.engineGain.gain.setTargetAtTime(vol, this.ctx.currentTime, 0.15)
     }
-  }
-
-  /** Set master volume 0-1. */
-  setMasterVolume(v: number): void {
-    if (this.masterGain) this.masterGain.gain.value = v * 0.75
   }
 
   // ── Vehicle engine ────────────────────────────────────────────────────────

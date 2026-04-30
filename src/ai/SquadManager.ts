@@ -24,15 +24,15 @@ export class SquadManager {
     const maxHp    = alive.length * 100
 
     if (totalHp / maxHp < 0.3) {
-      alive.forEach(a => this.roles.set(a.id, 'retreat'))
+      alive.forEach(a => { this.roles.set(a.id, 'retreat'); a.squadRole = 'retreat' })
       return
     }
 
-    // Rotate roles: half suppress, one flanks
+    // Rotate roles: first agent flanks, rest suppress
     alive.forEach((a, i) => {
-      if (i === 0)                      this.roles.set(a.id, 'flanker')
-      else if (i < alive.length - 1)   this.roles.set(a.id, 'suppressor')
-      else                              this.roles.set(a.id, 'suppressor')
+      const role: SquadRole = i === 0 ? 'flanker' : 'suppressor'
+      this.roles.set(a.id, role)
+      a.squadRole = role
     })
   }
 

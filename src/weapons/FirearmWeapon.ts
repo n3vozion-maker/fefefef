@@ -41,7 +41,8 @@ export class FirearmWeapon extends WeaponBase {
   get recoilYaw():    number { return this.cfg.recoilY * this.recoilMultiplier }
 
   protected override onFire(origin: THREE.Vector3, direction: THREE.Vector3): void {
-    const pellets = this.cfg.pellets ?? 1
+    const pellets    = this.cfg.pellets ?? 1
+    const suppressed = this.getAttachment('muzzle')?.id === 'suppressor'
 
     for (let i = 0; i < pellets; i++) {
       const spread = this.cfg.spread ?? 0
@@ -56,7 +57,8 @@ export class FirearmWeapon extends WeaponBase {
         origin,
         direction: dir,
         weapon: this,
-        damage: pellets > 1 ? this.stats.damage / pellets : undefined,
+        damage:     pellets > 1 ? this.stats.damage / pellets : undefined,
+        suppressed,
       })
     }
   }

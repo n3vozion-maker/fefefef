@@ -4,6 +4,7 @@ import { bus }            from '../core/EventBus'
 import { selector, sequence, condition, action, type BTNode } from './BehaviourTree'
 import type { AlertState }    from './SensorSystem'
 import type { PhysicsWorld }  from '../physics/PhysicsWorld'
+import type { SquadRole }     from './SquadManager'
 
 const AGENT_HEIGHT  = 1.8
 const AGENT_RADIUS  = 0.3
@@ -47,8 +48,10 @@ export class AIAgent {
   alertState: AlertState  = 'unaware'
   health:     number
   armour      = 0
+  squadRole:  SquadRole   = 'suppressor'
 
   readonly _stats: EnemyStats
+  private _flankSide = Math.random() < 0.5 ? 1 : -1
 
   private tree:       BTNode
   private fireTimer   = 0
@@ -184,6 +187,15 @@ export class AIAgent {
 
       if (ctx.agent.retreatTimer > 0) {
         ctx.agent.moveAway(ctx.playerPos, WALK_SPEED, ctx.dt)
+      } else if (ctx.agent.squadRole === 'flanker' && d > s.stopRange) {
+        // Flanker: sweep wide to the side before closing in
+        const flankTarget = ctx.agent.calcFlankPos(ctx.playerPos)
+        const distToFlank = ctx.agent.distanceTo(flankTarget)
+        if (distToFlank > 4) {
+          ctx.agent.moveTo(flankTarget, s.chaseSpeed * 1.15, ctx.dt)
+        } else {
+          ctx.agent.moveToWithStrafe(ctx.playerPos, s.chaseSpeed, ctx.dt)
+        }
       } else if (d > s.stopRange) {
         ctx.agent.moveToWithStrafe(ctx.playerPos, s.chaseSpeed, ctx.dt)
       } else {
@@ -219,6 +231,16 @@ export class AIAgent {
   }
 
   // ── Movement helpers ───────────────────────────────────────────────────────
+
+  calcFlankPos(playerPos: THREE.Vector3): THREE.Vector3 {
+    const pos      = this.getPosition()
+    const toPlayer = playerPos.clone().sub(pos)
+    toPlayer.y = 0
+    if (toPlayer.lengthSq() < 0.01) return playerPos.clone()
+    toPlayer.normalize()
+    const perp = new THREE.Vector3(-toPlayer.z, 0, toPlayer.x).multiplyScalar(this._flankSide * 20)
+    return playerPos.clone().add(perp)
+  }
 
   private distanceTo(pos: THREE.Vector3): number {
     return this.getPosition().distanceTo(pos)

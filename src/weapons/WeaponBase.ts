@@ -4,10 +4,11 @@ import type { WeaponDefinition, AttachmentSlot } from './WeaponRegistry'
 import type { AttachmentDef } from './AttachmentRegistry'
 
 export interface WeaponFiredPayload {
-  origin:    THREE.Vector3
-  direction: THREE.Vector3
-  weapon:    WeaponBase
-  damage?:   number   // override for shotgun pellets
+  origin:      THREE.Vector3
+  direction:   THREE.Vector3
+  weapon:      WeaponBase
+  damage?:     number    // override for shotgun pellets
+  suppressed?: boolean   // suppressor attached — limits enemy alerting radius
 }
 
 export abstract class WeaponBase {

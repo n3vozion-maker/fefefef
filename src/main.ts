@@ -68,6 +68,8 @@ import { AIGrenadeSystem }       from './ai/AIGrenadeSystem'
 import { TracerSystem }          from './effects/TracerSystem'
 import { setPlayerDamageMult }   from './combat/DamageCalculator'
 import { KillcamSystem }         from './hud/KillcamSystem'
+import { SettingsMenu }          from './hud/SettingsMenu'
+import { ExplosiveBarrelSystem } from './world/ExplosiveBarrelSystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -91,6 +93,7 @@ const missions    = new MissionSystem()
 const audio       = new AudioSystem()
 const hud         = new HUD()
 const killcam     = new KillcamSystem(renderer.camera)
+const settings    = new SettingsMenu(audio)
 const loop        = new GameLoop()
 const unlocks     = new UnlockSystem()
 const ammoPickups = new AmmoPickupSystem(renderer.scene)
@@ -267,7 +270,9 @@ for (const boss of allBosses) {
 const blood      = new BloodSystem(scene)
 const aiGrenades = new AIGrenadeSystem(scene)
 const tracers    = new TracerSystem(scene)
+const barrels    = new ExplosiveBarrelSystem(scene, physics)
 void blood
+void barrels
 
 // Side quests + world chests + waypoints
 const sqSystem    = new SideQuestSystem()
@@ -340,7 +345,7 @@ Object.assign(lockPrompt.style, {
   background: 'rgba(0,0,0,0.65)', padding: '12px 24px', borderRadius: '4px',
   pointerEvents: 'none', lineHeight: '1.8',
 })
-lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C slide · Space jump/vault · Ctrl dash · Q parry · G grenade · 1/2/3 weapons · Tab loadout · M missions · J side quests · E enter vehicle / repair · F exit · ESC pause</span>'
+lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C crouch · Z prone · Space jump/vault · Ctrl dash · Q parry · G grenade · 1/2/3 weapons · Tab loadout · M missions · J side quests · E enter vehicle · F exit · I settings · ESC pause</span>'
 document.body.appendChild(lockPrompt)
 
 // Dev label (hidden by default — toggle with F3)
@@ -555,8 +560,8 @@ bus.on('sqObjectiveUpdated', () => {
 bus.on<number>('fixedUpdate', (dt) => {
   killcam.update(dt)   // always runs — drives the delayed game-over
 
-  // Gate everything while paused, dead, killcam active, title screen showing, menus open, or map open
-  if (pauseMenu.paused || gameOver.isVisible() || killcam.isActive() || !titleScreen.isDismissed() || fullMap.isOpen()) return
+  // Gate everything while paused, dead, killcam/settings active, title screen showing, menus open, or map open
+  if (pauseMenu.paused || gameOver.isVisible() || killcam.isActive() || settings.isOpen() || !titleScreen.isDismissed() || fullMap.isOpen()) return
 
   // Slow-mo tick
   if (slowMoTimer > 0) {
@@ -566,7 +571,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   const gameDt = dt * timeScale
 
   const locked = input.isPointerLocked()
-  const menuOpen = missionMenu.isOpen() || loadoutMenu.isOpen()
+  const menuOpen = missionMenu.isOpen() || loadoutMenu.isOpen() || settings.isOpen()
   lockPrompt.style.display = (locked || menuOpen) ? 'none' : ''
   minimap.setVisible(locked && !menuOpen)
 
@@ -597,9 +602,10 @@ bus.on<number>('fixedUpdate', (dt) => {
     if (shouldFire) {
       const fired = w.tryFire(playerCam.getMuzzleOrigin(), playerCam.getMuzzleDirection())
       if (fired) {
-        playerCam.applyRecoil(w.recoilPitch, w.recoilYaw)
+        const proneMult = player.isProne() ? 0.15 : 1
+        playerCam.applyRecoil(w.recoilPitch * proneMult, w.recoilYaw * proneMult)
         viewmodel.flash()
-        viewmodel.kick(w.recoilPitch, w.recoilYaw)
+        viewmodel.kick(w.recoilPitch * proneMult, w.recoilYaw * proneMult)
         firing = false
       }
     }

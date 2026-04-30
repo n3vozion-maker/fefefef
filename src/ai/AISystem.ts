@@ -1,5 +1,6 @@
 import * as THREE from 'three'
 import { AIAgent, type EnemyType } from './AIAgent'
+import type { WeaponFiredPayload } from '../weapons/WeaponBase'
 import { SquadManager }   from './SquadManager'
 import { bus }            from '../core/EventBus'
 import type { PhysicsWorld } from '../physics/PhysicsWorld'
@@ -161,6 +162,18 @@ export class AISystem {
 
     bus.on<string>('agentDied', (id) => this.onAgentDied(id))
     bus.on('endgameStarted', () => { this.endgame = true })
+
+    // Alert nearby agents when player fires — suppressor limits radius to 10m
+    bus.on<WeaponFiredPayload>('weaponFired', (p) => {
+      const r = p.suppressed ? 10 : 44
+      const r2 = r * r
+      for (const agent of this.agents) {
+        if (agent.isDead() || agent.alertState === 'combat') continue
+        const dx = agent.body.position.x - p.origin.x
+        const dz = agent.body.position.z - p.origin.z
+        if (dx * dx + dz * dz < r2) agent.alertState = 'combat'
+      }
+    })
   }
 
   update(dt: number, playerPos: THREE.Vector3): void {
