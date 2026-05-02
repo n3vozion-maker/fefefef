@@ -530,6 +530,11 @@ bus.on('upgradeApplied', () => {
   setPlayerDamageMult(upgrades.damageMult)
 })
 
+// Reset all bosses to full HP + un-aggroed when player starts a fresh run
+bus.on('newGameStarted', () => {
+  for (const boss of allBosses) boss.resetAggro()
+})
+
 bus.on('gameStarted', () => {
   const cfg = DifficultySystem.config
 

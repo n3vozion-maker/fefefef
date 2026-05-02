@@ -10,28 +10,28 @@ import { EnemyDrone }    from './enemies/EnemyDrone'
 import { EnemyTank }     from './enemies/EnemyTank'
 import { getTerrainHeight } from '../world/TerrainNoise'
 
-// Shared base materials
-const _matGun = new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.55, metalness: 0.82 })
+// Shared base materials — emissive so enemies stay visible in dark environments
+const _matGun = new THREE.MeshStandardMaterial({ color: 0x282828, roughness: 0.50, metalness: 0.85, emissive: new THREE.Color(0x080808), emissiveIntensity: 0.30 })
 
-// Per-type material sets
+// Per-type material sets — ALL parts have emissive so enemies read against dark terrain
 const MATS: Record<EnemyType, { uniform: THREE.MeshStandardMaterial; dark: THREE.MeshStandardMaterial; helmet: THREE.MeshStandardMaterial }> = {
   // Standard infantry — olive drab, visible against grass
   standard: {
-    uniform: new THREE.MeshStandardMaterial({ color: 0x5a6e40, roughness: 0.80, metalness: 0.05, emissive: new THREE.Color(0x1a2010), emissiveIntensity: 0.3 }),
-    dark:    new THREE.MeshStandardMaterial({ color: 0x2e3d1e, roughness: 0.85, metalness: 0.08 }),
-    helmet:  new THREE.MeshStandardMaterial({ color: 0x3a4a28, roughness: 0.70, metalness: 0.25 }),
+    uniform: new THREE.MeshStandardMaterial({ color: 0x6b8048, roughness: 0.78, metalness: 0.05, emissive: new THREE.Color(0x222e10), emissiveIntensity: 0.55 }),
+    dark:    new THREE.MeshStandardMaterial({ color: 0x3e5228, roughness: 0.82, metalness: 0.08, emissive: new THREE.Color(0x141c0a), emissiveIntensity: 0.45 }),
+    helmet:  new THREE.MeshStandardMaterial({ color: 0x4e5e34, roughness: 0.68, metalness: 0.28, emissive: new THREE.Color(0x181e0c), emissiveIntensity: 0.50 }),
   },
   // Scout — grey urban camo, distinct silhouette
   scout: {
-    uniform: new THREE.MeshStandardMaterial({ color: 0x707080, roughness: 0.75, metalness: 0.12, emissive: new THREE.Color(0x101018), emissiveIntensity: 0.25 }),
-    dark:    new THREE.MeshStandardMaterial({ color: 0x383840, roughness: 0.85, metalness: 0.14 }),
-    helmet:  new THREE.MeshStandardMaterial({ color: 0x505060, roughness: 0.65, metalness: 0.30 }),
+    uniform: new THREE.MeshStandardMaterial({ color: 0x868698, roughness: 0.72, metalness: 0.12, emissive: new THREE.Color(0x18181e), emissiveIntensity: 0.50 }),
+    dark:    new THREE.MeshStandardMaterial({ color: 0x4c4c58, roughness: 0.82, metalness: 0.16, emissive: new THREE.Color(0x10101a), emissiveIntensity: 0.45 }),
+    helmet:  new THREE.MeshStandardMaterial({ color: 0x646474, roughness: 0.62, metalness: 0.32, emissive: new THREE.Color(0x141418), emissiveIntensity: 0.50 }),
   },
   // Gunner — tan/desert, heavy build
   gunner: {
-    uniform: new THREE.MeshStandardMaterial({ color: 0x7a5c30, roughness: 0.85, metalness: 0.08, emissive: new THREE.Color(0x201408), emissiveIntensity: 0.25 }),
-    dark:    new THREE.MeshStandardMaterial({ color: 0x3a2810, roughness: 0.90, metalness: 0.12 }),
-    helmet:  new THREE.MeshStandardMaterial({ color: 0x4a3418, roughness: 0.75, metalness: 0.38 }),
+    uniform: new THREE.MeshStandardMaterial({ color: 0x8e6c38, roughness: 0.82, metalness: 0.08, emissive: new THREE.Color(0x281c08), emissiveIntensity: 0.50 }),
+    dark:    new THREE.MeshStandardMaterial({ color: 0x503818, roughness: 0.88, metalness: 0.12, emissive: new THREE.Color(0x180e04), emissiveIntensity: 0.45 }),
+    helmet:  new THREE.MeshStandardMaterial({ color: 0x5e4420, roughness: 0.72, metalness: 0.40, emissive: new THREE.Color(0x1c1008), emissiveIntensity: 0.50 }),
   },
 }
 
@@ -92,6 +92,14 @@ function makeAgentMesh(type: EnemyType = 'standard'): THREE.Group {
   flashMesh.position.y = 0.85
   g.userData['flashMesh'] = flashMesh
   g.add(flashMesh)
+
+  // Subtle ambient fill light so enemy reads against dark terrain
+  const fillLight = new THREE.PointLight(0xfff0d0, 0.6, 4.5)
+  fillLight.position.set(0, 1.1, 0)
+  g.add(fillLight)
+
+  // Scale up slightly for better screen presence
+  g.scale.setScalar(1.18)
 
   return g
 }

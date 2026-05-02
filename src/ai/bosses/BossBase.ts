@@ -26,6 +26,13 @@ export abstract class BossBase {
 
   private aggroed = false
 
+  /** Reset boss to full health + un-aggroed — call on New Game */
+  resetAggro(): void {
+    this.aggroed = false
+    this.health  = this.maxHealth
+    this.phase   = 0
+  }
+
   constructor(
     id:                   string,
     protected phases:     BossPhase[],

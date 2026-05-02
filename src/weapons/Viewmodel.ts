@@ -6,9 +6,9 @@ const ADS_POS    = new THREE.Vector3( 0.00, -0.12, -0.30)
 const LERP_SPEED = 14
 
 // Material palette — emissive so weapon stays visible in dark areas
-const matBody   = new THREE.MeshStandardMaterial({ color: 0x4a6030, roughness: 0.80, metalness: 0.12, emissive: new THREE.Color(0x1e2810), emissiveIntensity: 0.45, depthTest: false })
-const matMetal  = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.90, emissive: new THREE.Color(0x0e0e0e), emissiveIntensity: 0.25, depthTest: false })
-const matGrip   = new THREE.MeshStandardMaterial({ color: 0x2e1e0e, roughness: 0.95, metalness: 0.02, emissive: new THREE.Color(0x0c0806), emissiveIntensity: 0.20, depthTest: false })
+const matBody   = new THREE.MeshStandardMaterial({ color: 0x607840, roughness: 0.75, metalness: 0.12, emissive: new THREE.Color(0x2a3a14), emissiveIntensity: 0.90, depthTest: false })
+const matMetal  = new THREE.MeshStandardMaterial({ color: 0x545454, roughness: 0.30, metalness: 0.92, emissive: new THREE.Color(0x181818), emissiveIntensity: 0.60, depthTest: false })
+const matGrip   = new THREE.MeshStandardMaterial({ color: 0x3e2c18, roughness: 0.90, metalness: 0.02, emissive: new THREE.Color(0x12100a), emissiveIntensity: 0.50, depthTest: false })
 
 export class Viewmodel {
   private group:    THREE.Group

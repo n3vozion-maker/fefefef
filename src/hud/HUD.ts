@@ -328,7 +328,10 @@ export class HUD {
 
     // ── Event listeners ────────────────────────────────────────────────────────
     bus.on('damageEvent', () => this.flashHitmarker())
-    bus.on<string>('hudNotify', (msg) => this.showToast(msg))
+    bus.on<string | { msg: string; color?: string }>('hudNotify', (payload) => {
+      if (typeof payload === 'string') this.showToast(payload)
+      else this.showToast(payload.msg, 3.5, payload.color)
+    })
     bus.on<{ damage: number }>('playerHit', ({ damage }) => {
       const a = Math.min(0.62, damage / 85)
       this.dmgFlashEl.style.background = `rgba(180,0,0,${a.toFixed(2)})`
@@ -501,11 +504,11 @@ export class HUD {
     }
   }
 
-  showToast(msg: string, duration = 3.5): void {
+  showToast(msg: string, duration = 3.5, color = '#ffe55a'): void {
     const t = document.createElement('div')
     Object.assign(t.style, {
       background:    'rgba(0,0,0,0.78)',
-      color:         '#ffe55a',
+      color,
       fontSize:      '11px', fontWeight: '700',
       letterSpacing: '.16em', padding: '6px 22px',
       borderLeft:    '2px solid #ffe55a',
