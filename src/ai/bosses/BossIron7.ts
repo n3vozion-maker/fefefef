@@ -37,57 +37,86 @@ export class BossIron7 extends BossBase {
   }
 
   buildMesh(): THREE.Group {
-    const g       = new THREE.Group()
-    const steelMat = new THREE.MeshStandardMaterial({ color: 0x2a2a2a, roughness: 0.3, metalness: 0.8 })
-    const darkMat  = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5, metalness: 0.6 })
-    const redMat   = new THREE.MeshStandardMaterial({ color: 0x880000, roughness: 0.4 })
-    const eyeMat   = new THREE.MeshStandardMaterial({ color: 0xff3300, emissive: new THREE.Color(0xff2200), emissiveIntensity: 2.0 })
+    const g        = new THREE.Group()
+    const steelMat = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.3, metalness: 0.85, emissive: new THREE.Color(0x0d0d0d), emissiveIntensity: 0.4 })
+    const darkMat  = new THREE.MeshStandardMaterial({ color: 0x1e1e1e, roughness: 0.5, metalness: 0.7,  emissive: new THREE.Color(0x080808), emissiveIntensity: 0.3 })
+    const redMat   = new THREE.MeshStandardMaterial({ color: 0xaa0000, roughness: 0.4, emissive: new THREE.Color(0x440000), emissiveIntensity: 0.5 })
+    const eyeMat   = new THREE.MeshStandardMaterial({ color: 0xff4400, emissive: new THREE.Color(0xff3300), emissiveIntensity: 3.0 })
+    const ventMat  = new THREE.MeshStandardMaterial({ color: 0xff6600, emissive: new THREE.Color(0xff4400), emissiveIntensity: 2.5 })
 
-    // Core torso — massive box
-    const torso = new THREE.Mesh(new THREE.BoxGeometry(1.6, 2.2, 1.2), steelMat)
-    torso.castShadow = true
-    g.add(torso)
+    // Core torso — massive armoured box (scaled up for a juggernaut)
+    const torso = new THREE.Mesh(new THREE.BoxGeometry(1.8, 2.4, 1.3), steelMat)
+    torso.castShadow = true; g.add(torso)
 
-    // Legs
-    for (const sx of [-0.6, 0.6]) {
-      const leg = new THREE.Mesh(new THREE.BoxGeometry(0.55, 1.1, 0.55), darkMat)
-      leg.position.set(sx, -1.65, 0)
-      leg.castShadow = true
-      g.add(leg)
+    // Torso side reinforcement ribs
+    for (const sx of [-0.9, 0.9]) {
+      const rib = new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.2, 0.18), darkMat)
+      rib.position.set(sx, 0, 0.6); g.add(rib)
     }
 
-    // Shoulder cannon pods
-    for (const sx of [-1.1, 1.1]) {
-      const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.28, 0.9, 8), steelMat)
-      pod.rotation.z = Math.PI / 2
-      pod.position.set(sx, 0.7, 0.2)
-      pod.castShadow = true
-      g.add(pod)
-      const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1.1, 6), darkMat)
-      barrel.rotation.x = Math.PI / 2
-      barrel.position.set(sx, 0.7, 0.8)
-      g.add(barrel)
+    // Legs — thick hydraulic pistons
+    for (const sx of [-0.62, 0.62]) {
+      const thigh = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.9, 0.58), steelMat)
+      thigh.position.set(sx, -1.45, 0); thigh.castShadow = true; g.add(thigh)
+      const shin = new THREE.Mesh(new THREE.BoxGeometry(0.50, 0.85, 0.50), darkMat)
+      shin.position.set(sx, -2.25, 0); shin.castShadow = true; g.add(shin)
+      // Piston rod
+      const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.55, 6), steelMat)
+      rod.position.set(sx, -1.85, 0.22); g.add(rod)
     }
 
-    // Head sensor block
-    const head = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.65, 0.7), darkMat)
-    head.position.set(0, 1.55, 0)
-    g.add(head)
+    // Shoulder cannon pods (dual-barrel)
+    for (const sx of [-1.2, 1.2]) {
+      const pod = new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.30, 1.0, 8), steelMat)
+      pod.rotation.z = Math.PI / 2; pod.position.set(sx, 0.75, 0.2)
+      pod.castShadow = true; g.add(pod)
+      // Twin barrels
+      for (const bz of [-0.10, 0.10]) {
+        const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.06, 0.06, 1.2, 6), darkMat)
+        barrel.rotation.x = Math.PI / 2; barrel.position.set(sx, 0.75 + bz, 0.9); g.add(barrel)
+      }
+      // Muzzle glow
+      const muzzle = new THREE.Mesh(new THREE.SphereGeometry(0.07, 5, 5), ventMat)
+      muzzle.position.set(sx, 0.75, 1.52); g.add(muzzle)
+    }
 
-    // Red eyes
-    for (const ex of [-0.18, 0.18]) {
-      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.1, 6, 6), eyeMat)
-      eye.position.set(ex, 1.55, 0.38)
-      g.add(eye)
+    // Arms connecting shoulder pods to body
+    for (const sx of [-0.9, 0.9]) {
+      const arm = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.36, 0.36), steelMat)
+      arm.position.set(sx, 0.3, 0.1); g.add(arm)
+    }
+
+    // Head sensor block — wider, more menacing
+    const head = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.70, 0.75), darkMat)
+    head.position.set(0, 1.65, 0); head.castShadow = true; g.add(head)
+
+    // Red glowing eyes — larger
+    for (const ex of [-0.22, 0.22]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.13, 8, 8), eyeMat)
+      eye.position.set(ex, 1.65, 0.40); g.add(eye)
+    }
+
+    // Glowing vent strips on torso
+    for (const vy of [0.6, 0.0, -0.6]) {
+      const vent = new THREE.Mesh(new THREE.BoxGeometry(1.4, 0.06, 0.06), ventMat)
+      vent.position.set(0, vy, 0.68); g.add(vent)
     }
 
     // Front armour plates (phase 1 only — removed in phase 2)
-    const frontPlate = new THREE.Mesh(new THREE.BoxGeometry(1.7, 2.3, 0.22), redMat)
-    frontPlate.position.set(0, 0, 0.72)
-    frontPlate.castShadow = true
+    const frontPlate = new THREE.Mesh(new THREE.BoxGeometry(1.85, 2.5, 0.24), redMat)
+    frontPlate.position.set(0, 0, 0.79); frontPlate.castShadow = true
     g.add(frontPlate)
     this.armourMeshes.push(frontPlate)
 
+    // Strong red point light at eye level
+    const eyeLight = new THREE.PointLight(0xff2200, 3.5, 14)
+    eyeLight.position.set(0, 1.65, 0.5); g.add(eyeLight)
+
+    // Orange under-glow from vents
+    const ventLight = new THREE.PointLight(0xff6600, 1.5, 8)
+    ventLight.position.set(0, 0.2, 0.8); g.add(ventLight)
+
+    g.scale.setScalar(1.1)   // 10% bigger — it's a juggernaut
     return g
   }
 

@@ -115,9 +115,9 @@ export class DayNightSystem {
     // Sunrise/sunset glow even near horizon
     const horizonGlow = Math.max(0, 1 - Math.abs(sinA) * 8)
 
-    this.sun.intensity     = 0.08 + sunAbove * 2.2 + horizonGlow * 0.6
-    this.ambient.intensity = 0.03 + sunAbove * 0.54   // near-zero at night
-    this.hemi.intensity    = 0.02 + sunAbove * 0.42   // near-zero at night
+    this.sun.intensity     = 0.18 + sunAbove * 2.4 + horizonGlow * 0.6
+    this.ambient.intensity = 0.18 + sunAbove * 0.55   // raised floor so scene never goes pitch black
+    this.hemi.intensity    = 0.12 + sunAbove * 0.42   // raised floor
 
     // ── Colours ───────────────────────────────────────────────────────────────
 

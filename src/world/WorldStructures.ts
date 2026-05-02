@@ -621,7 +621,83 @@ function buildSQ5ConvoyPoint(s: THREE.Scene, p: PhysicsWorld): void {
 // ── PUBLIC ENTRY POINT ────────────────────────────────────────────────────────
 // ═══════════════════════════════════════════════════════════════════════════════
 
+/** Forward Operating Base — player spawn area (0, 0) */
+function buildSpawnFOB(s: THREE.Scene, p: PhysicsWorld): void {
+  const cx = 0, cz = 0
+
+  // Perimeter berm — low concrete walls (open south so player can exit easily)
+  wall(s, p, cx,       cz - 28, 42, 1.8, 0.5, M.concrete)          // north wall
+  wall(s, p, cx - 21,  cz - 4,  0.5, 1.8, 48, M.concrete)          // west wall
+  wall(s, p, cx + 21,  cz - 4,  0.5, 1.8, 48, M.concrete)          // east wall
+  // South — two half-walls with vehicle-width gap in the centre
+  wall(s, p, cx - 12, cz + 22, 18, 1.8, 0.5, M.concrete)
+  wall(s, p, cx + 12, cz + 22, 18, 1.8, 0.5, M.concrete)
+
+  // Guard towers — NW & NE corners
+  guardTower(s, p, cx - 19, cz - 26, 6)
+  guardTower(s, p, cx + 19, cz - 26, 6)
+
+  // Command post (centre-north)
+  const cmdY = th(cx, cz - 16)
+  solidBox(s, p, cx, cmdY, cz - 16, 10, 4.0, 8, M.milGreenD)
+  decal(s, cx, cmdY + 4.08, cz - 16, 10.4, 0.22, 8.4, M.corrMetal)
+  // Door
+  const doorMat = new THREE.MeshStandardMaterial({ color: 0x080808 })
+  const door = new THREE.Mesh(new THREE.BoxGeometry(1.2, 2.2, 0.08), doorMat)
+  door.position.set(cx, cmdY + 1.1, cz - 12.04)
+  s.add(door)
+  // Windows
+  for (const ox of [-3.5, 3.5]) {
+    decal(s, cx + ox, cmdY + 2.6, cz - 12.0, 0.08, 1.0, 1.4, M.glass)
+  }
+
+  // Radio antenna on command post roof
+  solidCyl(s, cx + 4, cmdY + 4.25, cz - 16, 0.05, 4, M.metal)
+  decal(s, cx + 4, cmdY + 8.4, cz - 16, 1.8, 0.06, 0.06, M.metal)
+
+  // Barracks east & west
+  barracks(s, p, cx + 14, cz - 6, 12, 4.5, 2.8, 0)
+  barracks(s, p, cx - 14, cz - 6, 12, 4.5, 2.8, 0)
+
+  // Armory shed (south-east)
+  const armY = th(cx + 14, cz + 10)
+  solidBox(s, p, cx + 14, armY, cz + 10, 7, 2.6, 5, M.milGreen)
+  decal(s, cx + 14, armY + 2.7, cz + 10, 7.4, 0.18, 5.4, M.corrMetal)
+
+  // Vehicle bay (west side — open-front shelter)
+  const vbY = th(cx - 14, cz + 10)
+  solidBox(s, p, cx - 14, vbY, cz + 8, 0.3, 3.2, 10, M.metal)   // back wall
+  solidBox(s, p, cx - 18, vbY, cz + 8, 0.3, 3.2, 10, M.metal)   // side
+  decal(s, cx - 16, vbY + 3.2, cz + 8, 4.5, 0.25, 10.4, M.corrMetal)  // roof
+
+  // Sandbag fighting positions along south gap
+  sandbagWall(s, cx - 4, cz + 18, 3, 0.95)
+  sandbagWall(s, cx + 4, cz + 18, 3, 0.95)
+
+  // Crate stacks
+  crateStack(s, cx + 6,  cz - 4, 3, 2)
+  crateStack(s, cx - 6,  cz - 4, 2, 3)
+  crateStack(s, cx + 16, cz + 2, 2, 2)
+
+  // Flagpole centre
+  solidCyl(s, cx, th(cx, cz), cz, 0.06, 9, M.metal)
+  const flagMat = new THREE.MeshStandardMaterial({ color: 0x1155bb, emissive: 0x0a2255, emissiveIntensity: 0.5 })
+  decal(s, cx + 1, th(cx, cz) + 8.6, cz, 2.2, 0.75, 0.05, flagMat)
+
+  // Jersey barriers at gate
+  jerseyBarrier(s, p, cx - 5, cz + 20, 0.3)
+  jerseyBarrier(s, p, cx + 5, cz + 20, -0.3)
+
+  // Fuel drums cluster
+  for (const [ox, oz] of [[-8, 14], [-9, 15.5], [-7, 15.2]] as [number, number][]) {
+    barrel(s, cx + ox, cz + oz)
+  }
+}
+
 export function buildAllStructures(scene: THREE.Scene, physics: PhysicsWorld): void {
+  // Spawn area FOB — always visible at game start
+  buildSpawnFOB(scene, physics)
+
   // Main mission sites
   buildFirebaseAlpha(scene, physics)
   buildNorthernRuins(scene, physics)

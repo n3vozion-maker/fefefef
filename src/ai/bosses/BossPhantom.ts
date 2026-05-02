@@ -28,44 +28,82 @@ export class BossPhantom extends BossBase {
   }
 
   buildMesh(): THREE.Group {
-    const g       = new THREE.Group()
+    const g        = new THREE.Group()
     const bodyMat  = new THREE.MeshStandardMaterial({
-      color: 0x001a33, roughness: 0.2, metalness: 0.9,
-      transparent: true, opacity: 0.88,
+      color: 0x061a30, roughness: 0.2, metalness: 0.9,
+      emissive: new THREE.Color(0x001122), emissiveIntensity: 0.5,
+      transparent: true, opacity: 0.90,
     })
     const visorMat = new THREE.MeshStandardMaterial({
-      color: 0x00ffff, emissive: new THREE.Color(0x00ccff), emissiveIntensity: 1.5,
+      color: 0x00ffff, emissive: new THREE.Color(0x00eeff), emissiveIntensity: 3.0,
     })
     const glowMat  = new THREE.MeshStandardMaterial({
-      color: 0x002244,
-      emissive: new THREE.Color(0x003366), emissiveIntensity: 0.8,
+      color: 0x0044aa,
+      emissive: new THREE.Color(0x0055cc), emissiveIntensity: 2.0,
       roughness: 0.1, metalness: 1.0,
+    })
+    const plateMat = new THREE.MeshStandardMaterial({
+      color: 0x0a2040, roughness: 0.3, metalness: 0.95,
+      emissive: new THREE.Color(0x001833), emissiveIntensity: 0.4,
     })
 
     // Slim body
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.3, 1.85, 5, 8), bodyMat)
-    body.castShadow = true
-    g.add(body)
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.32, 1.95, 6, 10), bodyMat)
+    body.castShadow = true; g.add(body)
 
-    // Visor
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.08, 0.1), visorMat)
-    visor.position.set(0, 1.0, 0.25)
-    g.add(visor)
+    // Chest armour plate
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(0.58, 0.70, 0.14), plateMat)
+    chest.position.set(0, 0.35, 0.28); g.add(chest)
 
-    // Glowing edge strips (Tron-like)
-    for (const [y, h] of [[0.4, 1.0], [-0.5, 0.3]] as [number, number][]) {
-      const strip = new THREE.Mesh(new THREE.BoxGeometry(0.02, h, 0.32), glowMat)
-      strip.position.set(0.31, y, 0)
-      g.add(strip)
-      const strip2 = strip.clone()
-      strip2.position.x = -0.31
-      g.add(strip2)
+    // Head
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.22, 8, 6), plateMat)
+    head.position.set(0, 1.22, 0); head.castShadow = true; g.add(head)
+
+    // Helmet top
+    const helm = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.25, 0.18, 8), plateMat)
+    helm.position.set(0, 1.36, 0); g.add(helm)
+
+    // Wide visor — full-face screen look
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.40, 0.10, 0.12), visorMat)
+    visor.position.set(0, 1.18, 0.22); g.add(visor)
+
+    // Secondary visor scan line
+    const scanLine = new THREE.Mesh(new THREE.BoxGeometry(0.28, 0.03, 0.09), visorMat)
+    scanLine.position.set(0, 1.10, 0.22); g.add(scanLine)
+
+    // Glowing edge strips (Tron-like) — both sides and front
+    for (const [y, h] of [[0.4, 1.1], [-0.55, 0.35]] as [number, number][]) {
+      for (const sx of [-0.33, 0.33]) {
+        const strip = new THREE.Mesh(new THREE.BoxGeometry(0.025, h, 0.35), glowMat)
+        strip.position.set(sx, y, 0); g.add(strip)
+      }
     }
 
-    // Cyan point light
-    const light = new THREE.PointLight(0x00ccff, 1.2, 6)
-    light.position.set(0, 0.5, 0)
-    g.add(light)
+    // Horizontal accent strips
+    for (const sy of [0.8, 0.15, -0.35]) {
+      const hstrip = new THREE.Mesh(new THREE.BoxGeometry(0.68, 0.025, 0.06), glowMat)
+      hstrip.position.set(0, sy, 0.32); g.add(hstrip)
+    }
+
+    // Arms with glow trim
+    for (const sx of [-0.42, 0.42]) {
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.10, 0.65, 4, 6), bodyMat)
+      arm.position.set(sx, 0.28, 0); g.add(arm)
+      const armStrip = new THREE.Mesh(new THREE.BoxGeometry(0.025, 0.5, 0.025), glowMat)
+      armStrip.position.set(sx, 0.28, 0.11); g.add(armStrip)
+    }
+
+    // Pistol / SMG in right hand
+    const smg = new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.08, 0.42), plateMat)
+    smg.position.set(0.38, 0.05, 0.22); g.add(smg)
+
+    // Strong cyan point light — main glow
+    const light = new THREE.PointLight(0x00ccff, 2.8, 12)
+    light.position.set(0, 0.5, 0); g.add(light)
+
+    // Secondary visor light
+    const visorLight = new THREE.PointLight(0x00ffff, 1.2, 4)
+    visorLight.position.set(0, 1.18, 0.4); g.add(visorLight)
 
     return g
   }

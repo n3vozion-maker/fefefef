@@ -39,62 +39,94 @@ export class BossRex extends BossBase {
   buildMesh(): THREE.Group {
     const g = new THREE.Group()
 
-    // ── Exo-armour shell (phase 1 only) ──────────────────────────────────────
-    const exoMat  = new THREE.MeshStandardMaterial({ color: 0x1a0a00, roughness: 0.4, metalness: 0.7 })
-    const plateMat = new THREE.MeshStandardMaterial({ color: 0x8b0000, roughness: 0.5, metalness: 0.6 })
+    // ── Materials ─────────────────────────────────────────────────────────────
+    const exoMat   = new THREE.MeshStandardMaterial({ color: 0x2a1200, roughness: 0.4, metalness: 0.75, emissive: new THREE.Color(0x0e0500), emissiveIntensity: 0.4 })
+    const plateMat = new THREE.MeshStandardMaterial({ color: 0xaa0000, roughness: 0.45, metalness: 0.65, emissive: new THREE.Color(0x550000), emissiveIntensity: 0.6 })
+    const darkMat  = new THREE.MeshStandardMaterial({ color: 0x151515, roughness: 0.5, metalness: 0.85, emissive: new THREE.Color(0x060606), emissiveIntensity: 0.3 })
+    const goldMat  = new THREE.MeshStandardMaterial({ color: 0xffaa00, emissive: new THREE.Color(0xdd7700), emissiveIntensity: 2.5, roughness: 0.2, metalness: 0.8 })
 
-    const exoTorso = new THREE.Mesh(new THREE.BoxGeometry(2.0, 2.5, 1.4), exoMat)
-    exoTorso.castShadow = true
-    g.add(exoTorso)
+    // ── Exo-armour shell (phase 1 only) ──────────────────────────────────────
+
+    const exoTorso = new THREE.Mesh(new THREE.BoxGeometry(2.2, 2.7, 1.5), exoMat)
+    exoTorso.castShadow = true; g.add(exoTorso)
     this.exoMeshes.push(exoTorso)
 
-    // Chest plate
-    const chest = new THREE.Mesh(new THREE.BoxGeometry(1.9, 2.4, 0.28), plateMat)
-    chest.position.set(0, 0, 0.85)
-    chest.castShadow = true
-    g.add(chest)
+    // Chest plate with embossed detail
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(2.1, 2.6, 0.30), plateMat)
+    chest.position.set(0, 0, 0.92); chest.castShadow = true; g.add(chest)
     this.exoMeshes.push(chest)
 
-    // Shoulder pads
-    for (const sx of [-1.3, 1.3]) {
-      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.6, 0.9), plateMat)
-      pad.position.set(sx, 0.9, 0)
-      pad.castShadow = true
-      g.add(pad)
+    // Chest emblem (golden star-like shape)
+    const emblem = new THREE.Mesh(new THREE.BoxGeometry(0.55, 0.55, 0.06), goldMat)
+    emblem.position.set(0, 0.4, 1.24); g.add(emblem)
+
+    // Shoulder pads — massive
+    for (const sx of [-1.4, 1.4]) {
+      const pad = new THREE.Mesh(new THREE.BoxGeometry(0.78, 0.68, 1.0), plateMat)
+      pad.position.set(sx, 1.0, 0); pad.castShadow = true; g.add(pad)
       this.exoMeshes.push(pad)
+      // Shoulder spike
+      const spike = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.5, 6), exoMat)
+      spike.position.set(sx, 1.42, 0); g.add(spike)
+      this.exoMeshes.push(spike)
     }
 
-    // Helmet
-    const helm = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.8, 0.85), exoMat)
-    helm.position.set(0, 1.85, 0)
-    helm.castShadow = true
-    g.add(helm)
+    // Exo legs — armoured
+    for (const sx of [-0.7, 0.7]) {
+      const legUpper = new THREE.Mesh(new THREE.BoxGeometry(0.62, 1.1, 0.62), exoMat)
+      legUpper.position.set(sx, -1.55, 0); legUpper.castShadow = true; g.add(legUpper)
+      this.exoMeshes.push(legUpper)
+      const legLower = new THREE.Mesh(new THREE.BoxGeometry(0.54, 0.90, 0.54), darkMat)
+      legLower.position.set(sx, -2.45, 0); legLower.castShadow = true; g.add(legLower)
+      this.exoMeshes.push(legLower)
+    }
+
+    // Helmet — large, imposing
+    const helm = new THREE.Mesh(new THREE.BoxGeometry(1.15, 0.88, 0.95), exoMat)
+    helm.position.set(0, 2.0, 0); helm.castShadow = true; g.add(helm)
     this.exoMeshes.push(helm)
 
-    // Visor slit (gold)
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xcc8800, emissive: new THREE.Color(0xaa6600), emissiveIntensity: 1.0 })
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.7, 0.1, 0.1), goldMat)
-    visor.position.set(0, 1.85, 0.44)
-    g.add(visor)
+    // Visor slit (gold) — wide
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.82, 0.12, 0.12), goldMat)
+    visor.position.set(0, 2.0, 0.50); g.add(visor)
 
-    // Cannon arm
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.5, metalness: 0.8 })
-    const arm  = new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.35, 1.8), darkMat)
-    arm.position.set(1.2, 0.3, 0.9)
-    arm.castShadow = true
-    g.add(arm)
+    // Cannon arm (right)
+    const arm = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.40, 2.0), darkMat)
+    arm.position.set(1.3, 0.35, 1.0); arm.castShadow = true; g.add(arm)
     this.exoMeshes.push(arm)
 
+    // Cannon barrel
+    const barrelMat = new THREE.MeshStandardMaterial({ color: 0x0a0a0a, roughness: 0.3, metalness: 0.9 })
+    const barrel = new THREE.Mesh(new THREE.CylinderGeometry(0.11, 0.14, 1.8, 8), barrelMat)
+    barrel.rotation.x = Math.PI / 2; barrel.position.set(1.3, 0.35, 1.9); g.add(barrel)
+    this.exoMeshes.push(barrel)
+
     // ── Inner body (revealed in phase 2+) ────────────────────────────────────
-    const innerMat = new THREE.MeshStandardMaterial({ color: 0x3a1a1a, roughness: 0.7 })
-    const inner    = new THREE.Group()
-    const innerBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.5, 2.2, 6, 8), innerMat)
-    innerBody.castShadow = true
-    inner.add(innerBody)
-    inner.visible = false
-    g.add(inner)
+    const innerMat  = new THREE.MeshStandardMaterial({ color: 0x4a1818, roughness: 0.65, emissive: new THREE.Color(0x200808), emissiveIntensity: 0.5 })
+    const inner     = new THREE.Group()
+    const innerBody = new THREE.Mesh(new THREE.CapsuleGeometry(0.55, 2.4, 6, 8), innerMat)
+    innerBody.castShadow = true; inner.add(innerBody)
+
+    // Inner glowing red eyes
+    const innerEyeMat = new THREE.MeshStandardMaterial({ color: 0xff0000, emissive: new THREE.Color(0xff0000), emissiveIntensity: 3.5 })
+    for (const ex of [-0.2, 0.2]) {
+      const eye = new THREE.Mesh(new THREE.SphereGeometry(0.10, 6, 6), innerEyeMat)
+      eye.position.set(ex, 1.45, 0.48); inner.add(eye)
+    }
+
+    inner.visible = false; g.add(inner)
     this.innerMesh = inner
 
+    // ── Lights ────────────────────────────────────────────────────────────────
+    // Gold visor glow
+    const visorLight = new THREE.PointLight(0xffaa00, 2.5, 10)
+    visorLight.position.set(0, 2.0, 0.7); g.add(visorLight)
+
+    // Red under-glow for menace
+    const redLight = new THREE.PointLight(0xff2200, 1.8, 12)
+    redLight.position.set(0, -0.5, 0.5); g.add(redLight)
+
+    g.scale.setScalar(1.15)   // final boss — biggest presence
     return g
   }
 

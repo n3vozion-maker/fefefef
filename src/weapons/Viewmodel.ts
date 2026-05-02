@@ -103,8 +103,10 @@ export class Viewmodel {
     if (reloading) {
       this.group.rotation.x = Math.sin(Date.now() * 0.006) * 0.04
     } else {
-      this.group.rotation.x *= 0.85
+      this.group.rotation.x = THREE.MathUtils.lerp(this.group.rotation.x, 0, dt * 10)
     }
+    // Always recover yaw kick (was never reset — caused permanent sideways tilt)
+    this.group.rotation.y = THREE.MathUtils.lerp(this.group.rotation.y, 0, dt * 10)
 
     // Muzzle flash decay
     if (this.flashTimer > 0) {

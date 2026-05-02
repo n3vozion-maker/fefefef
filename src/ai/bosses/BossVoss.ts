@@ -29,32 +29,58 @@ export class BossVoss extends BossBase {
 
   buildMesh(): THREE.Group {
     const g       = new THREE.Group()
-    const armyMat = new THREE.MeshStandardMaterial({ color: 0x2a3a1a, roughness: 0.7 })
-    const redMat  = new THREE.MeshStandardMaterial({ color: 0xcc1111, roughness: 0.5 })
-    const goldMat = new THREE.MeshStandardMaterial({ color: 0xc8a000, roughness: 0.4, metalness: 0.6 })
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.8 })
+    const armyMat = new THREE.MeshStandardMaterial({ color: 0x3a5022, roughness: 0.7, emissive: new THREE.Color(0x0a1408), emissiveIntensity: 0.4 })
+    const redMat  = new THREE.MeshStandardMaterial({ color: 0xee1111, roughness: 0.5, emissive: new THREE.Color(0x880000), emissiveIntensity: 0.6 })
+    const goldMat = new THREE.MeshStandardMaterial({ color: 0xd4a800, roughness: 0.3, metalness: 0.7, emissive: new THREE.Color(0x604000), emissiveIntensity: 0.5 })
+    const darkMat = new THREE.MeshStandardMaterial({ color: 0x1a1a1a, roughness: 0.6, metalness: 0.5 })
+    const skinMat = new THREE.MeshStandardMaterial({ color: 0xc08060, roughness: 0.8 })
 
-    // Body
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.45, 2.0, 6, 8), armyMat)
-    body.castShadow = true
-    g.add(body)
+    // Large imposing body (1.8× scale)
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.62, 2.6, 6, 10), armyMat)
+    body.castShadow = true; g.add(body)
 
-    // Red beret
-    const beret = new THREE.Mesh(new THREE.CylinderGeometry(0.28, 0.35, 0.12, 10), redMat)
-    beret.position.set(0.08, 1.4, 0)
-    beret.rotation.z = 0.15
-    g.add(beret)
+    // Head
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.28, 8, 6), skinMat)
+    head.position.set(0, 1.82, 0); head.castShadow = true; g.add(head)
 
-    // Gold rank star on shoulder
-    const star = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.06, 0.18), goldMat)
-    star.position.set(0.5, 0.6, 0)
-    g.add(star)
+    // Red beret — large, tilted
+    const beret = new THREE.Mesh(new THREE.CylinderGeometry(0.22, 0.34, 0.14, 10), redMat)
+    beret.position.set(0.10, 2.02, 0); beret.rotation.z = 0.18; g.add(beret)
 
-    // Rifle (dark box approximation)
-    const rifle = new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.08, 0.9), darkMat)
-    rifle.position.set(0.35, 0.2, 0.5)
-    g.add(rifle)
+    // Heavy body armour plates
+    const chest = new THREE.Mesh(new THREE.BoxGeometry(1.10, 0.80, 0.30), darkMat)
+    chest.position.set(0, 0.85, 0.18); g.add(chest)
 
+    // Gold shoulder bars (both sides)
+    for (const sx of [-0.66, 0.66]) {
+      const bar = new THREE.Mesh(new THREE.BoxGeometry(0.20, 0.08, 0.38), goldMat)
+      bar.position.set(sx, 1.1, 0); g.add(bar)
+    }
+
+    // Arms
+    for (const sx of [-0.75, 0.75]) {
+      const arm = new THREE.Mesh(new THREE.CapsuleGeometry(0.14, 0.7, 4, 6), armyMat)
+      arm.position.set(sx, 0.4, 0); arm.rotation.z = sx > 0 ? -0.3 : 0.3
+      arm.castShadow = true; g.add(arm)
+    }
+
+    // Legs
+    for (const lx of [-0.26, 0.26]) {
+      const leg = new THREE.Mesh(new THREE.CapsuleGeometry(0.18, 0.9, 4, 6), darkMat)
+      leg.position.set(lx, -1.1, 0); leg.castShadow = true; g.add(leg)
+    }
+
+    // Assault rifle
+    const rifle = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.12, 1.1), darkMat)
+    rifle.position.set(0.45, 0.3, 0.5); g.add(rifle)
+    const barrel2 = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.4, 6), darkMat)
+    barrel2.rotation.x = Math.PI / 2; barrel2.position.set(0.45, 0.3, -0.05); g.add(barrel2)
+
+    // Glowing rank insignia on chest
+    const insig = new THREE.Mesh(new THREE.BoxGeometry(0.32, 0.12, 0.04), goldMat)
+    insig.position.set(0, 1.0, 0.34); g.add(insig)
+
+    g.scale.setScalar(1.0)   // already scaled in geometry
     return g
   }
 

@@ -31,29 +31,44 @@ export class BossWraith extends BossBase {
   }
 
   buildMesh(): THREE.Group {
-    const g       = new THREE.Group()
-    const darkMat = new THREE.MeshStandardMaterial({ color: 0x0a0a14, roughness: 0.9 })
-    const visorMat = new THREE.MeshStandardMaterial({ color: 0xff1111, emissive: new THREE.Color(0xff0000), emissiveIntensity: 1.2, roughness: 0.3 })
+    const g        = new THREE.Group()
+    const darkMat  = new THREE.MeshStandardMaterial({ color: 0x10101e, roughness: 0.85, emissive: new THREE.Color(0x05050f), emissiveIntensity: 0.5 })
+    const visorMat = new THREE.MeshStandardMaterial({ color: 0xff1111, emissive: new THREE.Color(0xff0000), emissiveIntensity: 2.2, roughness: 0.2 })
+    const cloakMat = new THREE.MeshStandardMaterial({ color: 0x1a1a2e, roughness: 0.95, transparent: true, opacity: 0.88 })
 
-    // Slim body
-    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.28, 1.9, 5, 8), darkMat)
-    body.castShadow = true
-    g.add(body)
+    // Slim but tall body (1.5× standard)
+    const body = new THREE.Mesh(new THREE.CapsuleGeometry(0.36, 2.4, 6, 10), darkMat)
+    body.castShadow = true; g.add(body)
 
-    // Hood (dark flattened half-sphere)
-    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.32, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), darkMat)
-    hood.position.set(0, 1.25, 0.05)
-    g.add(hood)
+    // Flowing cloak panels
+    for (const rz of [-0.25, 0.25]) {
+      const cloak = new THREE.Mesh(new THREE.BoxGeometry(0.12, 1.8, 0.55), cloakMat)
+      cloak.position.set(0, -0.3, 0); cloak.rotation.z = rz; g.add(cloak)
+    }
 
-    // Red glowing visor slit
-    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.3, 0.06, 0.08), visorMat)
-    visor.position.set(0, 1.0, 0.26)
-    g.add(visor)
+    // Head
+    const head = new THREE.Mesh(new THREE.SphereGeometry(0.24, 8, 6), darkMat)
+    head.position.set(0, 1.56, 0); head.castShadow = true; g.add(head)
 
-    // Point light for ambient glow (red eye)
-    const light = new THREE.PointLight(0xff0000, 0.8, 4)
-    light.position.set(0, 1.0, 0.3)
-    g.add(light)
+    // Hood
+    const hood = new THREE.Mesh(new THREE.SphereGeometry(0.30, 8, 6, 0, Math.PI * 2, 0, Math.PI * 0.55), darkMat)
+    hood.position.set(0, 1.62, 0.04); g.add(hood)
+
+    // Glowing red visor slit — wider, more menacing
+    const visor = new THREE.Mesh(new THREE.BoxGeometry(0.38, 0.07, 0.10), visorMat)
+    visor.position.set(0, 1.52, 0.22); g.add(visor)
+
+    // Secondary smaller visor dot
+    const dot = new THREE.Mesh(new THREE.SphereGeometry(0.04, 6, 6), visorMat)
+    dot.position.set(0, 1.44, 0.22); g.add(dot)
+
+    // SMG weapon
+    const smg = new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.09, 0.55), darkMat)
+    smg.position.set(0.32, 0.4, 0.25); g.add(smg)
+
+    // Strong red point light
+    const light = new THREE.PointLight(0xff0000, 1.8, 8)
+    light.position.set(0, 1.52, 0.3); g.add(light)
 
     return g
   }

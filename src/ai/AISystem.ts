@@ -15,20 +15,23 @@ const _matGun = new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.5
 
 // Per-type material sets
 const MATS: Record<EnemyType, { uniform: THREE.MeshStandardMaterial; dark: THREE.MeshStandardMaterial; helmet: THREE.MeshStandardMaterial }> = {
+  // Standard infantry — olive drab, visible against grass
   standard: {
-    uniform: new THREE.MeshStandardMaterial({ color: 0x3d4a2e, roughness: 0.85, metalness: 0.05 }),
-    dark:    new THREE.MeshStandardMaterial({ color: 0x1e2612, roughness: 0.9,  metalness: 0.08 }),
-    helmet:  new THREE.MeshStandardMaterial({ color: 0x2a3520, roughness: 0.75, metalness: 0.22 }),
+    uniform: new THREE.MeshStandardMaterial({ color: 0x5a6e40, roughness: 0.80, metalness: 0.05, emissive: new THREE.Color(0x1a2010), emissiveIntensity: 0.3 }),
+    dark:    new THREE.MeshStandardMaterial({ color: 0x2e3d1e, roughness: 0.85, metalness: 0.08 }),
+    helmet:  new THREE.MeshStandardMaterial({ color: 0x3a4a28, roughness: 0.70, metalness: 0.25 }),
   },
+  // Scout — grey urban camo, distinct silhouette
   scout: {
-    uniform: new THREE.MeshStandardMaterial({ color: 0x4a4a52, roughness: 0.80, metalness: 0.10 }),
-    dark:    new THREE.MeshStandardMaterial({ color: 0x22222a, roughness: 0.9,  metalness: 0.12 }),
-    helmet:  new THREE.MeshStandardMaterial({ color: 0x303038, roughness: 0.70, metalness: 0.28 }),
+    uniform: new THREE.MeshStandardMaterial({ color: 0x707080, roughness: 0.75, metalness: 0.12, emissive: new THREE.Color(0x101018), emissiveIntensity: 0.25 }),
+    dark:    new THREE.MeshStandardMaterial({ color: 0x383840, roughness: 0.85, metalness: 0.14 }),
+    helmet:  new THREE.MeshStandardMaterial({ color: 0x505060, roughness: 0.65, metalness: 0.30 }),
   },
+  // Gunner — tan/desert, heavy build
   gunner: {
-    uniform: new THREE.MeshStandardMaterial({ color: 0x2a1e10, roughness: 0.90, metalness: 0.08 }),
-    dark:    new THREE.MeshStandardMaterial({ color: 0x100c06, roughness: 0.95, metalness: 0.15 }),
-    helmet:  new THREE.MeshStandardMaterial({ color: 0x1a1208, roughness: 0.80, metalness: 0.35 }),
+    uniform: new THREE.MeshStandardMaterial({ color: 0x7a5c30, roughness: 0.85, metalness: 0.08, emissive: new THREE.Color(0x201408), emissiveIntensity: 0.25 }),
+    dark:    new THREE.MeshStandardMaterial({ color: 0x3a2810, roughness: 0.90, metalness: 0.12 }),
+    helmet:  new THREE.MeshStandardMaterial({ color: 0x4a3418, roughness: 0.75, metalness: 0.38 }),
   },
 }
 

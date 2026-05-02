@@ -218,9 +218,17 @@ const pauseMenu = new PauseMenu(() => {
 input.init()
 combat.init()
 
-renderer.getCanvas().addEventListener('click', () => {
-  if (!pauseMenu.paused && !gameOver.isVisible() && !missionMenu.isOpen() && !loadoutMenu.isOpen()) {
+const tryLock = (): void => {
+  if (!pauseMenu.paused && !gameOver.isVisible() && !missionMenu.isOpen()
+      && !loadoutMenu.isOpen() && titleScreen.isDismissed() && !settings.isOpen()) {
     input.requestPointerLock(renderer.getCanvas())
+  }
+}
+renderer.getCanvas().addEventListener('click', tryLock)
+// Pressing any movement key when not locked re-requests pointer lock
+document.addEventListener('keydown', (e) => {
+  if (!input.isPointerLocked() && ['KeyW','KeyA','KeyS','KeyD','Space'].includes(e.code)) {
+    tryLock()
   }
 })
 
@@ -348,15 +356,19 @@ for (const [vx, , vz] of vehiclePickupSites) {
   vehiclePickups.spawnCluster(vx, getTerrainHeight(vx, vz) + 0.5, vz)
 }
 
-// Lock prompt
+// Lock prompt — large, obvious, pointer-events enabled so clicking it also locks
 const lockPrompt = document.createElement('div')
 Object.assign(lockPrompt.style, {
   position: 'fixed', top: '50%', left: '50%', transform: 'translate(-50%,-50%)',
-  color: '#fff', fontFamily: 'monospace', fontSize: '13px',
-  background: 'rgba(0,0,0,0.65)', padding: '12px 24px', borderRadius: '4px',
-  pointerEvents: 'none', lineHeight: '1.8',
+  color: '#fff', fontFamily: 'monospace', fontSize: '15px',
+  background: 'rgba(0,0,0,0.82)', padding: '20px 36px', borderRadius: '4px',
+  border: '1px solid rgba(255,50,50,0.55)',
+  pointerEvents: 'auto', lineHeight: '2.0', cursor: 'pointer',
+  textAlign: 'center', userSelect: 'none',
+  boxShadow: '0 0 40px rgba(0,0,0,0.8)',
 })
-lockPrompt.innerHTML = 'Click to play<br><span style="font-size:11px;color:rgba(255,255,255,0.5)">WASD · Mouse · Shift sprint · C crouch · Z prone · Space jump/vault · Ctrl dash · Q parry · G grenade · Crouch+G airstrike · 1/2/3 weapons · Tab loadout · M missions · J side quests · E enter vehicle · F exit · N NV · I settings · ESC pause</span>'
+lockPrompt.innerHTML = '▶  CLICK TO PLAY<br><span style="font-size:10px;color:rgba(255,255,255,0.45)">WASD move · Mouse look · Shift sprint · C crouch · Z prone<br>Space jump · Ctrl dash · Q parry · G grenade · Crouch+G airstrike<br>1/2/3 weapons · Tab loadout · N night vision · I settings · ESC pause</span>'
+lockPrompt.addEventListener('click', () => input.requestPointerLock(renderer.getCanvas()))
 document.body.appendChild(lockPrompt)
 
 // Dev label (hidden by default — toggle with F3)
