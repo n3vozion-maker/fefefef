@@ -72,7 +72,7 @@ export class CombatSystem {
     const hitPt = endPt
 
     // Check what was hit
-    const body = result.body as unknown as { agentId?: string; barrelId?: string; armour?: number }
+    const body = result.body as unknown as { agentId?: string; barrelId?: string; coverId?: string; armour?: number }
     if (body?.agentId) {
       const armour = body.armour ?? 0
       const dmg = calculateDamage(
@@ -84,6 +84,11 @@ export class CombatSystem {
       bus.emit('damageEvent', { agentId: body.agentId, damage: dmg, position: hitPt })
     } else if (body?.barrelId) {
       bus.emit('barrelHit', { barrelId: body.barrelId, position: hitPt })
+    } else if (body?.coverId) {
+      // Destructible cover — apply damage, no penetration while it's alive
+      const dmg = p.damage ?? stats.damage
+      bus.emit('coverHit', { coverId: body.coverId, position: hitPt, damage: dmg })
+      this.spawnImpact(hitPt, result.hitNormalWorld as unknown as THREE.Vector3)
     } else {
       // Terrain / structure hit — dust puff + audio
       this.spawnImpact(hitPt, result.hitNormalWorld as unknown as THREE.Vector3)

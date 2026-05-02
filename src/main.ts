@@ -71,8 +71,9 @@ import { KillcamSystem }         from './hud/KillcamSystem'
 import { SettingsMenu }          from './hud/SettingsMenu'
 import { ExplosiveBarrelSystem } from './world/ExplosiveBarrelSystem'
 import { NightVisionSystem }     from './effects/NightVisionSystem'
-import { ShellEjectionSystem }   from './effects/ShellEjectionSystem'
-import { AirstrikeSystem }       from './combat/AirstrikeSystem'
+import { ShellEjectionSystem }      from './effects/ShellEjectionSystem'
+import { AirstrikeSystem }          from './combat/AirstrikeSystem'
+import { DestructibleCoverSystem }  from './world/DestructibleCoverSystem'
 import './weapons/loadDefinitions'
 
 // ── Bootstrap ─────────────────────────────────────────────────────────────────
@@ -277,10 +278,12 @@ const barrels     = new ExplosiveBarrelSystem(scene, physics)
 const nightVision = new NightVisionSystem(renderer.getCanvas(), ambientLight, hemiLight)
 const shells      = new ShellEjectionSystem(scene)
 const airstrike   = new AirstrikeSystem(scene)
+const cover       = new DestructibleCoverSystem(scene, physics)
 void blood
 void barrels
 void nightVision
 void shells
+void cover
 
 // Side quests + world chests + waypoints
 const sqSystem    = new SideQuestSystem()
@@ -637,6 +640,7 @@ bus.on<number>('fixedUpdate', (dt) => {
   blood.update(dt)
   shells.update(gameDt)
   airstrike.update(gameDt)
+  cover.update(gameDt)
 
   // ── Chest / vehicle interaction prompt ───────────────────────────────────
   const chestPrompt = chests.update(dt, playerPos)
