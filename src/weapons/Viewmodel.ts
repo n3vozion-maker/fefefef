@@ -1,14 +1,14 @@
 import * as THREE from 'three'
 import type { WeaponBase } from './WeaponBase'
 
-const STAND_POS  = new THREE.Vector3( 0.28, -0.22, -0.42)
-const ADS_POS    = new THREE.Vector3( 0.00, -0.13, -0.30)
+const STAND_POS  = new THREE.Vector3( 0.30, -0.18, -0.40)
+const ADS_POS    = new THREE.Vector3( 0.00, -0.12, -0.30)
 const LERP_SPEED = 14
 
-// Material palette
-const matBody   = new THREE.MeshStandardMaterial({ color: 0x2d3a1e, roughness: 0.85, metalness: 0.15, depthTest: false })
-const matMetal  = new THREE.MeshStandardMaterial({ color: 0x1c1c1c, roughness: 0.45, metalness: 0.85, depthTest: false })
-const matGrip   = new THREE.MeshStandardMaterial({ color: 0x1a1208, roughness: 0.95, metalness: 0.05, depthTest: false })
+// Material palette — emissive so weapon stays visible in dark areas
+const matBody   = new THREE.MeshStandardMaterial({ color: 0x4a6030, roughness: 0.80, metalness: 0.12, emissive: new THREE.Color(0x1e2810), emissiveIntensity: 0.45, depthTest: false })
+const matMetal  = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.35, metalness: 0.90, emissive: new THREE.Color(0x0e0e0e), emissiveIntensity: 0.25, depthTest: false })
+const matGrip   = new THREE.MeshStandardMaterial({ color: 0x2e1e0e, roughness: 0.95, metalness: 0.02, emissive: new THREE.Color(0x0c0806), emissiveIntensity: 0.20, depthTest: false })
 
 export class Viewmodel {
   private group:    THREE.Group

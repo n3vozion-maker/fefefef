@@ -19,6 +19,7 @@ export class PlayerCamera {
   private isADS       = false
   private roll        = 0
   private targetRoll  = 0
+  private invertY     = Settings.invertY
 
   // Recoil (yaw-only drift — pitch is applied as a direct kick in applyRecoil)
   private recoilYaw = 0
@@ -38,6 +39,15 @@ export class PlayerCamera {
       this.targetFov = active ? Settings.adsFov : Settings.fov
     })
 
+    // Settings live-update from pause menu
+    bus.on<number>('fovChanged', (fov) => {
+      if (!this.isADS) this.targetFov = fov
+    })
+    bus.on<number>('adsFovChanged', (fov) => {
+      if (this.isADS) this.targetFov = fov
+    })
+    bus.on<boolean>('invertYChanged', (v) => { this.invertY = v })
+
     // Screen shake triggers
     bus.on('explosion',      () => this.shake(0.22))
     bus.on('tankCannonFired',() => this.shake(0.18))
@@ -52,8 +62,9 @@ export class PlayerCamera {
   }
 
   applyMouseDelta(dx: number, dy: number): void {
+    const yDir = this.invertY ? -1 : 1
     this.yaw   -= dx * Settings.mouseSensitivity
-    this.pitch -= dy * Settings.mouseSensitivity
+    this.pitch -= dy * yDir * Settings.mouseSensitivity
     this.pitch  = Math.max(-Math.PI / 2 + 0.01, Math.min(Math.PI / 2 - 0.01, this.pitch))
   }
 
