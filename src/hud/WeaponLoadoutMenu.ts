@@ -1,3 +1,4 @@
+import * as THREE               from 'three'
 import type { WeaponManager }   from '../weapons/WeaponManager'
 import type { WeaponBase }      from '../weapons/WeaponBase'
 import type { CashSystem }      from '../economy/CashSystem'
@@ -9,6 +10,205 @@ import type { AttachmentDef }   from '../weapons/AttachmentRegistry'
 import type { AttachmentSlot }  from '../weapons/WeaponRegistry'
 import { bus }                  from '../core/EventBus'
 import { ghillie }              from '../effects/GhillieSystem'
+
+// ── 3D Weapon Mesh Builder ────────────────────────────────────────────────────
+
+function buildWeaponMesh(category: string): THREE.Group {
+  const g      = new THREE.Group()
+  const dark   = new THREE.MeshStandardMaterial({ color: 0x1a1e14, roughness: 0.5, metalness: 0.7 })
+  const metal  = new THREE.MeshStandardMaterial({ color: 0x3a3a3a, roughness: 0.25, metalness: 0.92 })
+  const body   = new THREE.MeshStandardMaterial({ color: 0x2a3320, roughness: 0.75, metalness: 0.1 })
+  const rubber = new THREE.MeshStandardMaterial({ color: 0x111111, roughness: 0.95, metalness: 0.0 })
+  const tan    = new THREE.MeshStandardMaterial({ color: 0x8c7a50, roughness: 0.8,  metalness: 0.05 })
+
+  const mesh = (geo: THREE.BufferGeometry, mat: THREE.Material): THREE.Mesh => {
+    const m = new THREE.Mesh(geo, mat); m.castShadow = true; return m
+  }
+
+  switch (category) {
+    case 'rifle': {
+      // Receiver (main body)
+      const recv = mesh(new THREE.BoxGeometry(0.06, 0.065, 0.42), body)
+      recv.position.set(0, 0, 0); g.add(recv)
+      // Upper receiver / dust cover
+      const upper = mesh(new THREE.BoxGeometry(0.055, 0.045, 0.30), dark)
+      upper.position.set(0, 0.056, -0.04); g.add(upper)
+      // Barrel
+      const brl = mesh(new THREE.CylinderGeometry(0.012, 0.014, 0.38, 8), metal)
+      brl.rotation.x = Math.PI / 2; brl.position.set(0, 0.042, -0.33); g.add(brl)
+      // Muzzle device
+      const muzzle = mesh(new THREE.CylinderGeometry(0.018, 0.016, 0.06, 8), metal)
+      muzzle.rotation.x = Math.PI / 2; muzzle.position.set(0, 0.042, -0.54); g.add(muzzle)
+      // Handguard
+      const guard = mesh(new THREE.BoxGeometry(0.05, 0.048, 0.22), dark)
+      guard.position.set(0, 0.025, -0.18); g.add(guard)
+      // Stock
+      const stock = mesh(new THREE.BoxGeometry(0.045, 0.062, 0.18), body)
+      stock.position.set(0, -0.005, 0.24); g.add(stock)
+      const buttpad = mesh(new THREE.BoxGeometry(0.042, 0.07, 0.025), rubber)
+      buttpad.position.set(0, -0.005, 0.34); g.add(buttpad)
+      // Magazine
+      const mag = mesh(new THREE.BoxGeometry(0.032, 0.14, 0.048), dark)
+      mag.position.set(0, -0.095, 0.02); g.add(mag)
+      // Pistol grip
+      const grip = mesh(new THREE.BoxGeometry(0.038, 0.095, 0.04), rubber)
+      grip.position.set(0, -0.07, 0.12); grip.rotation.x = 0.25; g.add(grip)
+      // Trigger guard
+      const trig = mesh(new THREE.TorusGeometry(0.022, 0.006, 4, 8, Math.PI), metal)
+      trig.position.set(0, -0.03, 0.09); trig.rotation.x = Math.PI; g.add(trig)
+      // Charging handle
+      const ch = mesh(new THREE.BoxGeometry(0.008, 0.015, 0.03), metal)
+      ch.position.set(0, 0.032, 0.06); g.add(ch)
+      // Carry handle / rail
+      const rail = mesh(new THREE.BoxGeometry(0.048, 0.012, 0.26), dark)
+      rail.position.set(0, 0.092, -0.04); g.add(rail)
+      break
+    }
+    case 'sniper': {
+      // Long receiver
+      const recv = mesh(new THREE.BoxGeometry(0.055, 0.06, 0.52), body)
+      recv.position.set(0, 0, 0); g.add(recv)
+      // Very long barrel (suppressed)
+      const brl = mesh(new THREE.CylinderGeometry(0.010, 0.012, 0.62, 8), metal)
+      brl.rotation.x = Math.PI / 2; brl.position.set(0, 0.036, -0.5); g.add(brl)
+      // Suppressor
+      const sup = mesh(new THREE.CylinderGeometry(0.022, 0.020, 0.14, 10), metal)
+      sup.rotation.x = Math.PI / 2; sup.position.set(0, 0.036, -0.85); g.add(sup)
+      // Scope
+      const scopeBody = mesh(new THREE.CylinderGeometry(0.028, 0.028, 0.22, 12), dark)
+      scopeBody.rotation.x = Math.PI / 2; scopeBody.position.set(0, 0.098, -0.06); g.add(scopeBody)
+      const scopeFront = mesh(new THREE.CylinderGeometry(0.020, 0.026, 0.04, 12), metal)
+      scopeFront.rotation.x = Math.PI / 2; scopeFront.position.set(0, 0.098, -0.19); g.add(scopeFront)
+      const scopeBack = mesh(new THREE.CylinderGeometry(0.020, 0.026, 0.04, 12), metal)
+      scopeBack.rotation.x = Math.PI / 2; scopeBack.position.set(0, 0.098, 0.07); g.add(scopeBack)
+      // Scope lens glow
+      const lens = mesh(new THREE.CircleGeometry(0.018, 12),
+        new THREE.MeshStandardMaterial({ color: 0x4488ff, emissive: new THREE.Color(0x2244cc), emissiveIntensity: 1.0 }))
+      lens.rotation.y = Math.PI / 2; lens.position.set(0, 0.098, -0.21); g.add(lens)
+      // Cheek piece stock
+      const stock = mesh(new THREE.BoxGeometry(0.048, 0.055, 0.28), tan)
+      stock.position.set(0, 0.01, 0.28); g.add(stock)
+      const cheek = mesh(new THREE.BoxGeometry(0.045, 0.05, 0.12), tan)
+      cheek.position.set(0, 0.045, 0.28); g.add(cheek)
+      // Bipod legs
+      for (const sx of [-0.055, 0.055]) {
+        const leg = mesh(new THREE.CylinderGeometry(0.005, 0.005, 0.22, 4), metal)
+        leg.position.set(sx, -0.1, -0.26); leg.rotation.z = sx > 0 ? 0.3 : -0.3; g.add(leg)
+      }
+      // Magazine (box mag)
+      const mag = mesh(new THREE.BoxGeometry(0.030, 0.10, 0.040), dark)
+      mag.position.set(0, -0.08, 0.04); g.add(mag)
+      break
+    }
+    case 'smg': {
+      // Compact receiver
+      const recv = mesh(new THREE.BoxGeometry(0.055, 0.060, 0.32), body)
+      recv.position.set(0, 0, 0); g.add(recv)
+      // Short barrel
+      const brl = mesh(new THREE.CylinderGeometry(0.011, 0.013, 0.18, 8), metal)
+      brl.rotation.x = Math.PI / 2; brl.position.set(0, 0.036, -0.22); g.add(brl)
+      // Muzzle brake
+      const muzzle = mesh(new THREE.CylinderGeometry(0.018, 0.015, 0.04, 6), metal)
+      muzzle.rotation.x = Math.PI / 2; muzzle.position.set(0, 0.036, -0.33); g.add(muzzle)
+      // Folding stock
+      const stock1 = mesh(new THREE.BoxGeometry(0.010, 0.050, 0.15), metal)
+      stock1.position.set(0.025, -0.01, 0.22); g.add(stock1)
+      const stock2 = mesh(new THREE.BoxGeometry(0.010, 0.050, 0.15), metal)
+      stock2.position.set(-0.025, -0.01, 0.22); g.add(stock2)
+      const stockCap = mesh(new THREE.BoxGeometry(0.06, 0.045, 0.015), rubber)
+      stockCap.position.set(0, -0.01, 0.3); g.add(stockCap)
+      // Large magazine (staggered)
+      const mag = mesh(new THREE.BoxGeometry(0.028, 0.17, 0.044), dark)
+      mag.position.set(0, -0.11, 0.02); g.add(mag)
+      // Foregrip
+      const fgrip = mesh(new THREE.BoxGeometry(0.034, 0.08, 0.034), rubber)
+      fgrip.position.set(0, -0.065, -0.14); g.add(fgrip)
+      break
+    }
+    case 'shotgun': {
+      // Wide receiver
+      const recv = mesh(new THREE.BoxGeometry(0.065, 0.07, 0.38), body)
+      recv.position.set(0, 0, 0); g.add(recv)
+      // Barrel (tube)
+      const brl = mesh(new THREE.CylinderGeometry(0.022, 0.022, 0.44, 8), metal)
+      brl.rotation.x = Math.PI / 2; brl.position.set(0, 0.048, -0.28); g.add(brl)
+      // Tube magazine under barrel
+      const tubeMag = mesh(new THREE.CylinderGeometry(0.015, 0.015, 0.36, 8), metal)
+      tubeMag.rotation.x = Math.PI / 2; tubeMag.position.set(0, 0.018, -0.24); g.add(tubeMag)
+      // Pump forend
+      const pump = mesh(new THREE.BoxGeometry(0.06, 0.05, 0.10), tan)
+      pump.position.set(0, 0.024, -0.20); g.add(pump)
+      // Wooden stock
+      const stock = mesh(new THREE.BoxGeometry(0.05, 0.065, 0.24), tan)
+      stock.position.set(0, -0.008, 0.24); g.add(stock)
+      // Heat shield on barrel
+      const shield = mesh(new THREE.BoxGeometry(0.048, 0.016, 0.30), dark)
+      shield.position.set(0, 0.07, -0.22); g.add(shield)
+      break
+    }
+    case 'pistol': {
+      // Compact slide
+      const slide = mesh(new THREE.BoxGeometry(0.038, 0.048, 0.22), metal)
+      slide.position.set(0, 0.024, 0); g.add(slide)
+      // Barrel
+      const brl = mesh(new THREE.CylinderGeometry(0.009, 0.011, 0.16, 8), metal)
+      brl.rotation.x = Math.PI / 2; brl.position.set(0, 0.028, -0.16); g.add(brl)
+      // Frame
+      const frame = mesh(new THREE.BoxGeometry(0.036, 0.04, 0.18), body)
+      frame.position.set(0, -0.012, 0.01); g.add(frame)
+      // Grip
+      const grip = mesh(new THREE.BoxGeometry(0.034, 0.10, 0.036), rubber)
+      grip.position.set(0, -0.08, 0.09); g.add(grip)
+      // Trigger guard
+      const tg = mesh(new THREE.TorusGeometry(0.018, 0.005, 4, 8, Math.PI), dark)
+      tg.position.set(0, -0.025, 0.04); tg.rotation.x = Math.PI; g.add(tg)
+      // Magazine base
+      const mag = mesh(new THREE.BoxGeometry(0.032, 0.08, 0.034), dark)
+      mag.position.set(0, -0.085, 0.09); g.add(mag)
+      // Front sight
+      const sight = mesh(new THREE.BoxGeometry(0.008, 0.014, 0.006), metal)
+      sight.position.set(0, 0.056, -0.11); g.add(sight)
+      break
+    }
+    case 'explosive': {
+      // Rocket tube
+      const tube = mesh(new THREE.CylinderGeometry(0.055, 0.055, 0.7, 12), dark)
+      tube.rotation.x = Math.PI / 2; tube.position.set(0, 0, 0); g.add(tube)
+      // Rear cone (exhaust)
+      const rear = mesh(new THREE.CylinderGeometry(0.055, 0.035, 0.15, 10), metal)
+      rear.rotation.x = Math.PI / 2; rear.position.set(0, 0, 0.43); g.add(rear)
+      // Front cap
+      const front = mesh(new THREE.CylinderGeometry(0.04, 0.055, 0.08, 10), metal)
+      front.rotation.x = Math.PI / 2; front.position.set(0, 0, -0.4); g.add(front)
+      // Warhead tip
+      const tip = mesh(new THREE.ConeGeometry(0.04, 0.14, 10), new THREE.MeshStandardMaterial({
+        color: 0xcc2200, roughness: 0.4, metalness: 0.5,
+      }))
+      tip.rotation.x = -Math.PI / 2; tip.position.set(0, 0, -0.54); g.add(tip)
+      // Shoulder rest
+      const shoulder = mesh(new THREE.BoxGeometry(0.05, 0.04, 0.55), rubber)
+      shoulder.position.set(0, -0.065, 0); g.add(shoulder)
+      // Sight
+      const sight = mesh(new THREE.BoxGeometry(0.014, 0.06, 0.12), dark)
+      sight.position.set(0, 0.085, 0); g.add(sight)
+      // Fins
+      for (let i = 0; i < 4; i++) {
+        const fin = mesh(new THREE.BoxGeometry(0.08, 0.005, 0.08), metal)
+        fin.rotation.x = (i / 4) * Math.PI * 2; fin.position.set(0, 0, 0.3)
+        g.add(fin)
+      }
+      break
+    }
+    default: {
+      // Fallback: generic box weapon
+      const r = mesh(new THREE.BoxGeometry(0.06, 0.06, 0.4), body); g.add(r)
+      const b = mesh(new THREE.CylinderGeometry(0.012, 0.012, 0.28, 8), metal)
+      b.rotation.x = Math.PI / 2; b.position.set(0, 0.04, -0.29); g.add(b)
+    }
+  }
+
+  return g
+}
 
 // ── Colours per category ──────────────────────────────────────────────────────
 
@@ -49,6 +249,15 @@ export class WeaponLoadoutMenu {
   private tabUpg:       HTMLElement
   private _open         = false
   private selected:     0 | 1 | 2 | null = null
+
+  // 3D weapon preview
+  private previewRenderer: THREE.WebGLRenderer | null = null
+  private previewScene:    THREE.Scene | null = null
+  private previewCamera:   THREE.PerspectiveCamera | null = null
+  private previewMesh:     THREE.Group | null = null
+  private previewAnimId    = 0
+  private previewNameEl:   HTMLElement | null = null
+  private previewCatEl:    HTMLElement | null = null
 
   constructor(
     private mgr:      WeaponManager,
@@ -114,6 +323,51 @@ export class WeaponLoadoutMenu {
     })
     title.textContent = 'WEAPON LOADOUT  —  Tab to close  ·  Click slot → select  ·  Click backpack → swap  ·  Right-click slot → holster'
     leftCol.appendChild(title)
+
+    // ── 3D Weapon Preview ─────────────────────────────────────────────────────
+    const previewWrap = document.createElement('div')
+    Object.assign(previewWrap.style, {
+      width: '100%', height: '150px',
+      background: 'rgba(0,0,0,0.55)',
+      border: '1px solid rgba(255,255,255,0.1)',
+      borderRadius: '4px', marginBottom: '18px',
+      overflow: 'hidden', position: 'relative',
+      display: 'flex', flexDirection: 'column',
+    })
+
+    const previewCanvas = document.createElement('canvas')
+    previewCanvas.width  = 1284   // retina
+    previewCanvas.height = 560
+    Object.assign(previewCanvas.style, {
+      display: 'block', width: '100%', height: '130px', flex: '0 0 auto',
+    })
+    previewWrap.appendChild(previewCanvas)
+
+    const previewInfo = document.createElement('div')
+    Object.assign(previewInfo.style, {
+      display: 'flex', justifyContent: 'space-between', alignItems: 'baseline',
+      padding: '4px 12px 5px', borderTop: '1px solid rgba(255,255,255,0.07)',
+    })
+
+    this.previewNameEl = document.createElement('div')
+    Object.assign(this.previewNameEl.style, {
+      fontSize: '11px', fontWeight: 'bold', color: '#c8e0b8', letterSpacing: '.06em',
+    })
+    this.previewNameEl.textContent = 'SELECT A WEAPON'
+
+    this.previewCatEl = document.createElement('div')
+    Object.assign(this.previewCatEl.style, {
+      fontSize: '8px', letterSpacing: '.2em', textTransform: 'uppercase',
+      color: 'rgba(180,220,140,0.4)',
+    })
+
+    previewInfo.appendChild(this.previewNameEl)
+    previewInfo.appendChild(this.previewCatEl)
+    previewWrap.appendChild(previewInfo)
+    leftCol.appendChild(previewWrap)
+
+    // Init Three.js preview renderer
+    this.initPreviewRenderer(previewCanvas)
 
     // Slot row
     const slotRow = document.createElement('div')
@@ -220,6 +474,68 @@ export class WeaponLoadoutMenu {
     this.updateTabs()
   }
 
+  // ── 3D Preview ────────────────────────────────────────────────────────────────
+
+  private initPreviewRenderer(canvas: HTMLCanvasElement): void {
+    try {
+      this.previewRenderer = new THREE.WebGLRenderer({
+        canvas, antialias: true, alpha: true,
+      })
+      this.previewRenderer.setSize(1284, 560)
+      this.previewRenderer.setClearColor(0x000000, 0)
+
+      this.previewScene  = new THREE.Scene()
+      this.previewCamera = new THREE.PerspectiveCamera(42, 1284 / 560, 0.01, 20)
+      this.previewCamera.position.set(0.45, 0.22, 0.65)
+      this.previewCamera.lookAt(0, -0.01, 0)
+
+      // Lights
+      const amb = new THREE.AmbientLight(0x88aacc, 0.55)
+      this.previewScene.add(amb)
+      const key = new THREE.DirectionalLight(0xfff6e8, 2.0)
+      key.position.set(2, 3, 2); this.previewScene.add(key)
+      const fill = new THREE.DirectionalLight(0x4466cc, 0.45)
+      fill.position.set(-3, 0, -2); this.previewScene.add(fill)
+      const ground = new THREE.DirectionalLight(0x223311, 0.25)
+      ground.position.set(0, -3, 0); this.previewScene.add(ground)
+
+      this.previewMesh = new THREE.Group()
+      this.previewScene.add(this.previewMesh)
+    } catch {
+      this.previewRenderer = null
+    }
+  }
+
+  private updatePreview3D(category: string, name: string): void {
+    if (!this.previewMesh || !this.previewRenderer) return
+    // Clear old meshes
+    while (this.previewMesh.children.length > 0) {
+      const c = this.previewMesh.children[0]
+      if (!c) break
+      this.previewMesh.remove(c)
+    }
+    const wm = buildWeaponMesh(category)
+    this.previewMesh.add(wm)
+    this.previewMesh.rotation.y = 0.6   // start at a nice angle
+
+    if (this.previewNameEl) this.previewNameEl.textContent = name.toUpperCase()
+    if (this.previewCatEl)  {
+      this.previewCatEl.textContent = category
+      const catColors: Record<string, string> = {
+        rifle:'#4fc3f7', smg:'#81d4fa', sniper:'#ce93d8',
+        shotgun:'#ffcc80', pistol:'#a5d6a7', explosive:'#ef9a9a',
+      }
+      this.previewCatEl.style.color = (catColors[category] ?? '#90a4ae') + 'cc'
+    }
+  }
+
+  private animate3D = (): void => {
+    if (!this._open || !this.previewRenderer || !this.previewScene || !this.previewCamera) return
+    this.previewAnimId = requestAnimationFrame(this.animate3D)
+    if (this.previewMesh) this.previewMesh.rotation.y += 0.009
+    this.previewRenderer.render(this.previewScene, this.previewCamera)
+  }
+
   // ── Public ───────────────────────────────────────────────────────────────────
 
   isOpen(): boolean { return this._open }
@@ -230,12 +546,17 @@ export class WeaponLoadoutMenu {
     this._open = true
     this.overlay.style.display = 'flex'
     this.rebuild()
+    // Start 3D preview with active weapon
+    const active = this.mgr.activeWeapon()
+    if (active) this.updatePreview3D(active.getCategory(), active.getName())
+    this.animate3D()
   }
 
   private hide(): void {
     this._open    = false
     this.selected = null
     this.overlay.style.display = 'none'
+    cancelAnimationFrame(this.previewAnimId)
   }
 
   // ── Build ─────────────────────────────────────────────────────────────────────
@@ -669,6 +990,7 @@ export class WeaponLoadoutMenu {
       transition: 'border-color 0.15s, background 0.15s',
     })
     card.addEventListener('mouseenter', () => {
+      this.updatePreview3D(w.getCategory(), w.getName())
       if (this.selected !== null) {
         card.style.borderColor = cc
         card.style.background  = `${cc}14`
@@ -759,6 +1081,9 @@ export class WeaponLoadoutMenu {
       this.mgr.swapSlots(this.selected, slot)
       this.selected = null
     }
+    // Update 3D preview for the selected slot's weapon
+    const w = this.mgr.slots[this.selected ?? slot]
+    if (w) this.updatePreview3D(w.getCategory(), w.getName())
     this.rebuild()
   }
 }

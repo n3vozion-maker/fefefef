@@ -8,6 +8,9 @@ export interface GameSettings {
   masterVolume:        number
   musicVolume:         number
   sfxVolume:           number
+  shadowQuality:       'low' | 'medium' | 'high'
+  graphicsQuality:     'low' | 'medium' | 'high'
+  invertY:             boolean
 }
 
 const DEFAULTS: GameSettings = {
@@ -18,6 +21,9 @@ const DEFAULTS: GameSettings = {
   masterVolume:       1.0,
   musicVolume:        1.0,
   sfxVolume:          1.0,
+  shadowQuality:      'medium',
+  graphicsQuality:    'medium',
+  invertY:            false,
 }
 
 function persist(s: GameSettings): void {
