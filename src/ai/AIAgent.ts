@@ -75,6 +75,19 @@ export class AIAgent {
   // Death
   private deathPose = 0
 
+  // Patrol route (set by AISystem)
+  private patrolRoute:  THREE.Vector3[] | null = null
+  private routeIdx      = 0
+  private routeDwell    = 0   // seconds to wait at current waypoint
+
+  // Alert indicator mesh (! above head)
+  private alertMesh: THREE.Mesh | null = null
+  private alertMeshTimer = 0
+
+  // Lost-player timer — resets to patrol after staying out of range
+  private lostTimer = 0
+  private static readonly LOST_PATIENCE = 13   // s
+
   // Visual mesh managed by AISystem (Group for articulated soldier models)
   mesh: THREE.Object3D | null = null
 
@@ -106,6 +119,12 @@ export class AIAgent {
     })
   }
 
+  /** Assign a looping patrol route. Call once after construction. */
+  setPatrolRoute(waypoints: THREE.Vector3[], startIdx = 0): void {
+    this.patrolRoute = waypoints
+    this.routeIdx    = startIdx % waypoints.length
+  }
+
   update(dt: number, playerPos: THREE.Vector3): void {
     if (this.isDead()) return
     this.lastKnownPlayerPos = playerPos
@@ -113,13 +132,41 @@ export class AIAgent {
     this.strafeTimer  = Math.max(0, this.strafeTimer - dt)
     this.grenadeTimer = Math.max(0, this.grenadeTimer - dt)
     if (this.retreatTimer > 0) this.retreatTimer -= dt
+
+    // Lost-player reset: if combat but player has been out of range too long, resume patrol
+    if (this.alertState === 'combat') {
+      if (this.distanceTo(playerPos) > this._stats.shootRange * 2.5) {
+        this.lostTimer += dt
+        if (this.lostTimer >= AIAgent.LOST_PATIENCE) {
+          this.alertState = 'unaware'
+          this.lostTimer  = 0
+        }
+      } else {
+        this.lostTimer = 0
+      }
+    } else {
+      this.lostTimer = 0
+    }
+
+    // Alert indicator
+    if (this.alertMeshTimer > 0) {
+      this.alertMeshTimer -= dt
+      if (this.alertMeshTimer <= 0 && this.alertMesh) {
+        this.alertMesh.visible = false
+      }
+    }
+
     this.tree.tick({ agent: this, playerPos, dt })
     this.syncMesh(dt)
   }
 
   applyDamage(amount: number): void {
     this.health = Math.max(0, this.health - amount)
-    if (this.alertState === 'unaware') this.alertState = 'combat'
+    if (this.alertState === 'unaware') {
+      this.alertState = 'combat'
+      this.lostTimer  = 0
+      this.showAlertIndicator()
+    }
     if (this.isDead()) {
       this.deathPose = Math.floor(Math.random() * DEATH_POSES.length)
       bus.emit('agentDied', this.id)
@@ -167,6 +214,31 @@ export class AIAgent {
     bus.emit('aiWeaponFired', { agentId: this.id, origin, direction: dir, damage: this._stats.damage })
   }
 
+  // ── Alert indicator ───────────────────────────────────────────────────────
+
+  /** Flashes a red "!" above the agent's head for 1.8 s on first alert. */
+  showAlertIndicator(): void {
+    if (this.alertMeshTimer > 0) return  // already showing
+    if (!this.mesh) return
+
+    if (!this.alertMesh) {
+      // Build once: a small red box + exclamation glyph approximation
+      const geo  = new THREE.BoxGeometry(0.12, 0.30, 0.06)
+      const mat  = new THREE.MeshBasicMaterial({ color: 0xff2200, depthTest: false })
+      this.alertMesh = new THREE.Mesh(geo, mat)
+      this.alertMesh.position.set(0, 2.35, 0)
+      this.mesh.add(this.alertMesh)
+
+      // Dot under the bar
+      const dot    = new THREE.Mesh(new THREE.BoxGeometry(0.10, 0.10, 0.06), mat.clone())
+      dot.position.set(0, -0.24, 0)
+      this.alertMesh.add(dot)
+    }
+
+    this.alertMesh.visible = true
+    this.alertMeshTimer    = 1.8
+  }
+
   // ── Behaviour tree ─────────────────────────────────────────────────────────
 
   private buildTree(): BTNode {
@@ -187,7 +259,11 @@ export class AIAgent {
       const d   = ctx.agent.distanceTo(ctx.playerPos)
       const s   = ctx.agent._stats
       if (d > s.shootRange) return 'failure'
-      ctx.agent.alertState = 'combat'
+      if (ctx.agent.alertState !== 'combat') {
+        ctx.agent.alertState = 'combat'
+        ctx.agent.lostTimer  = 0
+        ctx.agent.showAlertIndicator()
+      }
 
       if (ctx.agent.retreatTimer > 0) {
         ctx.agent.moveAway(ctx.playerPos, WALK_SPEED, ctx.dt)
@@ -316,6 +392,35 @@ export class AIAgent {
   }
 
   private patrol(dt: number): void {
+    if (this.patrolRoute && this.patrolRoute.length > 0) {
+      this.patrolRouteStep(dt)
+    } else {
+      this.patrolRandom(dt)
+    }
+  }
+
+  private patrolRouteStep(dt: number): void {
+    const route  = this.patrolRoute!
+    const target = route[this.routeIdx]!
+    const pos    = this.getPosition()
+    const dx     = target.x - pos.x
+    const dz     = target.z - pos.z
+    const dist2d = Math.sqrt(dx * dx + dz * dz)
+
+    if (dist2d < 2.2) {
+      // Reached waypoint — dwell briefly then advance
+      this.routeDwell -= dt
+      if (this.routeDwell <= 0) {
+        this.routeIdx  = (this.routeIdx + 1) % route.length
+        this.routeDwell = 1.8 + Math.random() * 2.5
+      }
+    } else {
+      // Walk toward waypoint, matching terrain height
+      this.moveTo(new THREE.Vector3(target.x, pos.y, target.z), PATROL_SPEED, dt)
+    }
+  }
+
+  private patrolRandom(dt: number): void {
     this.patrolTimer -= dt
     const pos = this.getPosition()
     if (this.patrolTimer <= 0 || pos.distanceTo(this.patrolTarget) < 1.5) {

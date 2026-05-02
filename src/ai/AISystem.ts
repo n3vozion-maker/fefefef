@@ -8,6 +8,7 @@ import { EnemySniper }   from './enemies/EnemySniper'
 import { EnemyRobot }    from './enemies/EnemyRobot'
 import { EnemyDrone }    from './enemies/EnemyDrone'
 import { EnemyTank }     from './enemies/EnemyTank'
+import { getTerrainHeight } from '../world/TerrainNoise'
 
 // Shared base materials
 const _matGun = new THREE.MeshStandardMaterial({ color: 0x181818, roughness: 0.55, metalness: 0.82 })
@@ -106,24 +107,33 @@ interface SpawnGroup {
   cz:    number
   count: number
   squad: boolean
-  respawnTimer?: number   // countdown; undefined = alive
+  route: ReadonlyArray<[number, number]>   // dx,dz offsets from centre
+  respawnTimer?: number                    // countdown; undefined = alive
 }
+
+// Reusable patrol shapes (offsets from group centre)
+const BOX_SM:   ReadonlyArray<[number, number]> = [[-16,-16],[16,-16],[16,16],[-16,16]]
+const BOX_MD:   ReadonlyArray<[number, number]> = [[-26,-20],[26,-20],[26,20],[-26,20]]
+const DIAMOND:  ReadonlyArray<[number, number]> = [[0,-28],[22,0],[0,28],[-22,0]]
+const LINE:     ReadonlyArray<[number, number]> = [[-30,0],[0,10],[30,0],[0,-10]]
+const TRIANGLE: ReadonlyArray<[number, number]> = [[0,-24],[22,18],[-22,18]]
+const FIG8:     ReadonlyArray<[number, number]> = [[-22,-14],[-8,4],[0,-4],[8,4],[22,-14],[0,-28]]
 
 // Ammo types dropped by infantry
 const INFANTRY_AMMO_DROPS: Array<'rifle' | 'pistol'> = ['rifle', 'pistol', 'rifle', 'pistol', 'rifle']
 
 // Predefined enemy spawn groups (world coordinates of group centres)
 const SPAWN_GROUPS: SpawnGroup[] = [
-  { cx:  580, cz: -380, count: 4, squad: true  },
-  { cx: -680, cz:  820, count: 4, squad: true  },
-  { cx:  210, cz:-1180, count: 3, squad: false },
-  { cx: 1090, cz:  120, count: 3, squad: false },
-  { cx: -890, cz: -180, count: 3, squad: false },
-  { cx: -290, cz:  520, count: 2, squad: false },
-  { cx:  710, cz: -680, count: 2, squad: false },
-  { cx:  410, cz:  310, count: 2, squad: false },
-  { cx: -490, cz: -780, count: 3, squad: true  },
-  { cx:  910, cz:  580, count: 2, squad: false },
+  { cx:  580, cz: -380, count: 4, squad: true,  route: BOX_MD   },
+  { cx: -680, cz:  820, count: 4, squad: true,  route: BOX_MD   },
+  { cx:  210, cz:-1180, count: 3, squad: false, route: TRIANGLE },
+  { cx: 1090, cz:  120, count: 3, squad: false, route: DIAMOND  },
+  { cx: -890, cz: -180, count: 3, squad: false, route: LINE     },
+  { cx: -290, cz:  520, count: 2, squad: false, route: BOX_SM   },
+  { cx:  710, cz: -680, count: 2, squad: false, route: LINE     },
+  { cx:  410, cz:  310, count: 2, squad: false, route: DIAMOND  },
+  { cx: -490, cz: -780, count: 3, squad: true,  route: FIG8     },
+  { cx:  910, cz:  580, count: 2, squad: false, route: TRIANGLE },
 ]
 
 const SPAWN_SCATTER = 14   // m — random offset around group centre
@@ -221,6 +231,13 @@ export class AISystem {
   }
 
   private spawnGroup(grp: SpawnGroup): void {
+    // Build world-space patrol route (terrain-snapped)
+    const route: THREE.Vector3[] = grp.route.map(([dx, dz]) => {
+      const wx = grp.cx + dx
+      const wz = grp.cz + dz
+      return new THREE.Vector3(wx, getTerrainHeight(wx, wz), wz)
+    })
+
     const squadAgents: AIAgent[] = []
     for (let i = 0; i < grp.count; i++) {
       const x    = grp.cx + (Math.random() - 0.5) * SPAWN_SCATTER * 2
@@ -231,6 +248,8 @@ export class AISystem {
       mesh.position.set(x, 1, z)
       this.scene.add(mesh)
       agent.mesh = mesh
+      // Stagger start position on route so agents spread out
+      agent.setPatrolRoute(route, i)
       this.agents.push(agent)
       if (grp.squad) squadAgents.push(agent)
     }
@@ -281,6 +300,11 @@ export class AISystem {
 
   /** Spawn count infantry agents near world position (x, z) — used by boss reinforcement. */
   spawnReinforcement(x: number, z: number, count = 2): void {
+    // Give them a small box patrol around the reinforcement point
+    const route = BOX_SM.map(([dx, dz]) => {
+      const wx = x + dx; const wz = z + dz
+      return new THREE.Vector3(wx, getTerrainHeight(wx, wz), wz)
+    })
     for (let i = 0; i < count; i++) {
       const ox   = x + (Math.random() - 0.5) * 14
       const oz   = z + (Math.random() - 0.5) * 14
@@ -290,6 +314,7 @@ export class AISystem {
       mesh.position.set(ox, 1, oz)
       this.scene.add(mesh)
       agent.mesh = mesh
+      agent.setPatrolRoute(route, i)
       this.agents.push(agent)
     }
   }
