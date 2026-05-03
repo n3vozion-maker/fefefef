@@ -140,13 +140,14 @@ export class HUD {
       position: 'absolute', top: '50%', left: '50%',
       width: '18px', height: '18px', opacity: '0',
       transform: 'translate(-50%,-50%) rotate(45deg)',
+      transition: 'transform 0.06s ease-out',
     })
     this.el(this.hitmarker, {
-      position: 'absolute', width: '18px', height: '2px', background: '#ff2222',
+      position: 'absolute', width: '18px', height: '2px', background: '#ffffff',
       top: '50%', transform: 'translateY(-50%)',
     })
     this.el(this.hitmarker, {
-      position: 'absolute', width: '2px', height: '18px', background: '#ff2222',
+      position: 'absolute', width: '2px', height: '18px', background: '#ffffff',
       left: '50%', transform: 'translateX(-50%)',
     })
 
@@ -327,7 +328,8 @@ export class HUD {
     })
 
     // ── Event listeners ────────────────────────────────────────────────────────
-    bus.on('damageEvent', () => this.flashHitmarker())
+    bus.on('damageEvent', () => this.flashHitmarker('hit'))
+    bus.on('agentDied',  () => this.flashHitmarker('kill'))
     bus.on<string | { msg: string; color?: string }>('hudNotify', (payload) => {
       if (typeof payload === 'string') this.showToast(payload)
       else this.showToast(payload.msg, 3.5, payload.color)
@@ -436,7 +438,13 @@ export class HUD {
   tick(dt: number, hpPct = 100): void {
     if (this.hitTimer > 0) {
       this.hitTimer -= dt
-      if (this.hitTimer <= 0) this.hitmarker.style.opacity = '0'
+      if (this.hitTimer <= 0) {
+        this.hitmarker.style.opacity   = '0'
+        this.hitmarker.style.transform = 'translate(-50%,-50%) rotate(45deg) scale(1)'
+        Array.from(this.hitmarker.children).forEach(c => {
+          (c as HTMLElement).style.background = '#ffffff'
+        })
+      }
     }
     if (this.dmgFlashTimer > 0) {
       this.dmgFlashTimer -= dt
@@ -544,9 +552,16 @@ export class HUD {
     this.killLines.push({ el, timer: 4.0 })
   }
 
-  private flashHitmarker(): void {
-    this.hitmarker.style.opacity = '1'
-    this.hitTimer = 0.14
+  private flashHitmarker(type: 'hit' | 'kill' = 'hit'): void {
+    const color = type === 'kill' ? '#ff3300' : '#ffffff'
+    const scale = type === 'kill' ? 'translate(-50%,-50%) rotate(45deg) scale(1.5)' : 'translate(-50%,-50%) rotate(45deg) scale(1)'
+    // Recolor both arms
+    Array.from(this.hitmarker.children).forEach(c => {
+      (c as HTMLElement).style.background = color
+    })
+    this.hitmarker.style.transform = scale
+    this.hitmarker.style.opacity   = '1'
+    this.hitTimer = type === 'kill' ? 0.22 : 0.14
   }
 
   private el(parent: HTMLElement, style: Partial<CSSStyleDeclaration>): HTMLElement {

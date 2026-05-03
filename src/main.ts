@@ -128,7 +128,7 @@ const bossIron7   = new BossIron7  (-680,  820, physics)   // mission_3 Firebase
 const bossPhantom = new BossPhantom( 750,  420, physics)   // mission_4 Dead Drop zone
 const bossRex     = new BossRex    (-850, -700, physics)   // mission_5 Deep Facility
 
-const bossHealthBar = new BossHealthBar()
+const bossHealthBar  = new BossHealthBar()
 
 // Register services
 ServiceLocator.register('renderer',   renderer)

@@ -356,6 +356,23 @@ const SOUNDS: Record<string, SoundFn> = {
     osc.connect(g); g.connect(dest); osc.start(t); osc.stop(t + 0.06)
   },
 
+  // Kill confirmation — two-tone ascending chime, distinct from regular hit tick
+  kill_confirm(ctx, dest) {
+    const t = ctx.currentTime
+    const freqs = [1046.5, 1396.9]   // C6 → F6 — short satisfying "ding ding"
+    freqs.forEach((f, i) => {
+      const osc = ctx.createOscillator(); osc.type = 'triangle'
+      osc.frequency.value = f
+      const g = ctx.createGain()
+      const start = t + i * 0.055
+      g.gain.setValueAtTime(0.0, start)
+      g.gain.linearRampToValueAtTime(0.22, start + 0.012)
+      g.gain.exponentialRampToValueAtTime(0.001, start + 0.14)
+      osc.connect(g); g.connect(dest)
+      osc.start(start); osc.stop(start + 0.16)
+    })
+  },
+
   // Shell casing metallic tink on floor bounce
   shell_bounce(ctx, dest) {
     const t  = ctx.currentTime
@@ -621,6 +638,7 @@ export class AudioSystem {
       this.play('hit_flesh')
       this.play('hit_confirm')   // audible hit confirmation tick
     })
+    bus.on('agentDied', () => this.play('kill_confirm'))
     bus.on('bulletImpact', () => this.play('hit_surface'))
 
     bus.on('airstrikeIncoming', () => this.play('airstrike_incoming'))
