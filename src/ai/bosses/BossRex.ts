@@ -19,6 +19,8 @@ const CANNON_DMG  = 120
 const AIRSTRIKE_R = 10
 
 export class BossRex extends BossBase {
+  protected override footDepth = 3.0   // exo-legs extend further down
+
   private cannonTimer    = 1
   private reinforceTimer = 25
   private airstrikeTimer = 0

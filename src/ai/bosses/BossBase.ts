@@ -24,7 +24,11 @@ export abstract class BossBase {
   protected moveTimer   = 0
   protected moveTarget  = new THREE.Vector3()
 
+  /** Depth of feet below mesh origin in local space — used for Y-lift when scaled. Override per boss. */
+  protected footDepth = 1.55
+
   private aggroed = false
+  private despawned = false
 
   /** Reset boss to full health + un-aggroed — call on New Game */
   resetAggro(): void {
@@ -68,9 +72,38 @@ export abstract class BossBase {
   }
 
   applyDamage(amount: number): void {
+    if (this.despawned) return
     this.health = Math.max(0, this.health - amount)
     bus.emit('bossDamaged', { id: this.id, health: this.health, maxHealth: this.maxHealth })
-    if (this.isDead()) bus.emit('bossDied', this.id)
+    if (this.isDead()) {
+      bus.emit('bossDied', this.id)
+      this.scheduleDespawn()
+    }
+  }
+
+  private scheduleDespawn(): void {
+    if (this.despawned) return
+    this.despawned = true
+    // Flash red for 1.5 s then vanish
+    if (this.mesh) {
+      this.mesh.traverse(child => {
+        if (!(child instanceof THREE.Mesh)) return
+        const orig = child.material
+        if (orig instanceof THREE.MeshStandardMaterial) {
+          const flash = orig.clone()
+          flash.emissive.setHex(0xff2200)
+          flash.emissiveIntensity = 3.0
+          child.material = flash
+        }
+      })
+    }
+    setTimeout(() => {
+      if (this.mesh) this.mesh.visible = false
+      this.body.velocity.set(0, 0, 0)
+      this.body.angularVelocity.set(0, 0, 0)
+      this.body.collisionResponse = false
+      this.body.type = 2   // STATIC — freeze in place
+    }, 1500)
   }
 
   isDead(): boolean { return this.health <= 0 }
@@ -127,6 +160,14 @@ export abstract class BossBase {
 
   private syncMesh(): void {
     if (!this.mesh) return
-    this.mesh.position.set(this.body.position.x, this.body.position.y, this.body.position.z)
+    // Lift mesh so feet stay at ground level when the mesh is scaled up.
+    // Formula: lift = (scale - 1) * footDepth  keeps world-feet at body_y - footDepth
+    const scale = this.mesh.scale.x
+    const lift  = (scale - 1.0) * this.footDepth
+    this.mesh.position.set(
+      this.body.position.x,
+      this.body.position.y + lift,
+      this.body.position.z,
+    )
   }
 }

@@ -18,6 +18,8 @@ const CHARGE_SPD = 22
 const CHARGE_DUR = 1.5
 
 export class BossIron7 extends BossBase {
+  protected override footDepth = 2.0   // juggernaut legs are shorter but bulky
+
   private stompTimer  = 5
   private rocketTimer = 0
   private chargeTimer = 0

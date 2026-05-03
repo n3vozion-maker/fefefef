@@ -244,7 +244,7 @@ scene.fog = new THREE.FogExp2(0xb0cfe0, 0.00045)
 const sun = new THREE.DirectionalLight(0xfff5e0, 2.2)
 sun.position.set(600, 400, 300)
 sun.castShadow = true
-sun.shadow.mapSize.set(2048, 2048)
+sun.shadow.mapSize.set(1024, 1024)
 sun.shadow.camera.near = 1; sun.shadow.camera.far = 1_200
 sun.shadow.camera.left = sun.shadow.camera.bottom = -300
 sun.shadow.camera.right = sun.shadow.camera.top   =  300
@@ -271,10 +271,13 @@ flashlight.target.position.set(0, 0, -1)
 scene.add(renderer.camera)
 
 // ── Boss meshes ───────────────────────────────────────────────────────────────
+// Scale order matches allBosses: Voss, Wraith, Iron7, Phantom, Rex
+const BOSS_SCALES = [2.2, 2.0, 2.5, 2.0, 2.8] as const
 const allBosses = [bossVoss, bossWraith, bossIron7, bossPhantom, bossRex] as const
-for (const boss of allBosses) {
-  const mesh = boss.buildMesh()
-  boss.mesh  = mesh
+for (const [i, boss] of allBosses.entries()) {
+  const mesh  = boss.buildMesh()
+  boss.mesh   = mesh
+  mesh.scale.setScalar(BOSS_SCALES[i] ?? 2.0)
   scene.add(mesh)
 }
 
@@ -709,8 +712,9 @@ bus.on<number>('fixedUpdate', (dt) => {
   }
   waypointHUD.tick(playerPos, playerCam.getYaw(), wpTarget, wpLabel)
 
-  minimap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions(), wpTarget)
-  fullMap.update(dt, playerPos, playerCam.getYaw(), ai.getAgentPositions())
+  const enemyPositions = ai.getAgentPositions()   // compute once, reuse for both maps
+  minimap.update(dt, playerPos, playerCam.getYaw(), enemyPositions, wpTarget)
+  fullMap.update(dt, playerPos, playerCam.getYaw(), enemyPositions)
 
   // Day/night, weather, ammo, vehicles, endgame
   dayNight.update(dt)
