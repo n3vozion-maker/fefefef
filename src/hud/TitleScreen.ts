@@ -200,8 +200,27 @@ export class TitleScreen {
         ng.style.background = '#1a0000'
         ng.style.color = 'rgba(255,100,100,0.8)'
       })
+      // Two-click confirmation — first click turns button red + changes label,
+      // second click within 3 s confirms. Avoids native confirm() blocking.
+      let ngPending = false
+      let ngTimer = 0
       ng.addEventListener('click', () => {
-        if (confirm('Start a new game? Your current save will be erased.')) {
+        if (!ngPending) {
+          ngPending = true
+          ng.textContent = 'CONFIRM NEW GAME'
+          ng.style.background   = '#5a0000'
+          ng.style.borderColor  = '#ff0000'
+          ng.style.color        = '#ff4444'
+          clearTimeout(ngTimer)
+          ngTimer = window.setTimeout(() => {
+            ngPending = false
+            ng.textContent = 'NEW GAME'
+            ng.style.background  = '#1a0000'
+            ng.style.borderColor = 'rgba(255,80,80,0.5)'
+            ng.style.color       = 'rgba(255,100,100,0.8)'
+          }, 3000)
+        } else {
+          clearTimeout(ngTimer)
           this.dismiss(true)
         }
       })
