@@ -115,9 +115,9 @@ export class DayNightSystem {
     // Sunrise/sunset glow even near horizon
     const horizonGlow = Math.max(0, 1 - Math.abs(sinA) * 8)
 
-    this.sun.intensity     = 0.18 + sunAbove * 2.4 + horizonGlow * 0.6
-    this.ambient.intensity = 0.18 + sunAbove * 0.55   // raised floor so scene never goes pitch black
-    this.hemi.intensity    = 0.12 + sunAbove * 0.42   // raised floor
+    this.sun.intensity     = 0.10 + sunAbove * 2.6 + horizonGlow * 0.8
+    this.ambient.intensity = 0.05 + sunAbove * 0.65   // low floor — genuine darkness at night
+    this.hemi.intensity    = 0.03 + sunAbove * 0.50   // low floor
 
     // ── Colours ───────────────────────────────────────────────────────────────
 
@@ -150,8 +150,8 @@ export class DayNightSystem {
     this.sun.color.copy(sunCol)
     this.ambient.color.copy(sunCol.clone().multiplyScalar(0.7))
 
-    // Fog: much thicker at night (visibility is the darkness mechanic)
-    this.fog.density = 0.00040 + (1 - sunAbove) * 0.00110
+    // Fog: much thicker at night — limited visibility is the tension mechanic
+    this.fog.density = 0.00035 + (1 - sunAbove) * 0.00180
 
     // Hemi sky/ground colours
     this.hemi.color.copy(skyCol)

@@ -135,6 +135,11 @@ const INFANTRY_AMMO_DROPS: Array<'rifle' | 'pistol'> = ['rifle', 'pistol', 'rifl
 
 // Predefined enemy spawn groups (world coordinates of group centres)
 const SPAWN_GROUPS: SpawnGroup[] = [
+  // ── Near-FOB patrols — visible within ~2 minutes of leaving spawn ──
+  { cx:  125, cz: -95,  count: 2, squad: false, route: BOX_SM   },
+  { cx: -105, cz:  130, count: 2, squad: false, route: DIAMOND  },
+  { cx:   60, cz:  155, count: 3, squad: true,  route: TRIANGLE },
+  // ── Mid-range groups ───────────────────────────────────────────────
   { cx:  580, cz: -380, count: 4, squad: true,  route: BOX_MD   },
   { cx: -680, cz:  820, count: 4, squad: true,  route: BOX_MD   },
   { cx:  210, cz:-1180, count: 3, squad: false, route: TRIANGLE },

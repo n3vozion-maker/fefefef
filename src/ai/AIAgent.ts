@@ -65,7 +65,8 @@ export class AIAgent {
   private hitFlashTimer = 0
 
   // Tactical movement
-  private retreatTimer  = 0
+  private retreatTimer    = 0
+  private suppressionTimer = 0   // when > 0: stay in place + fire rapidly
   private strafeDir:  1 | -1 = 1
   private strafeTimer = 0
 
@@ -131,7 +132,8 @@ export class AIAgent {
     this.fireTimer    = Math.max(0, this.fireTimer - dt)
     this.strafeTimer  = Math.max(0, this.strafeTimer - dt)
     this.grenadeTimer = Math.max(0, this.grenadeTimer - dt)
-    if (this.retreatTimer > 0) this.retreatTimer -= dt
+    if (this.retreatTimer   > 0) this.retreatTimer   -= dt
+    if (this.suppressionTimer > 0) this.suppressionTimer -= dt
 
     // Lost-player reset: if combat but player has been out of range too long, resume patrol
     if (this.alertState === 'combat') {
@@ -175,10 +177,16 @@ export class AIAgent {
     } else {
       // Visible hit flash
       this.hitFlashTimer = 0.14
-      // 45% chance to briefly retreat from the hit
-      if (Math.random() < 0.45) {
-        this.retreatTimer = 0.7 + Math.random() * 0.8
+      const roll = Math.random()
+      if (roll < 0.35) {
+        // 35%: suppress — hold position and return fire rapidly
+        this.suppressionTimer = 1.2 + Math.random() * 0.8
+        this.retreatTimer     = 0
+      } else if (roll < 0.65) {
+        // 30%: briefly retreat
+        this.retreatTimer = 0.6 + Math.random() * 0.6
       }
+      // 35%: keep advancing (aggressive AI)
     }
   }
 
@@ -265,7 +273,15 @@ export class AIAgent {
         ctx.agent.showAlertIndicator()
       }
 
-      if (ctx.agent.retreatTimer > 0) {
+      if (ctx.agent.suppressionTimer > 0) {
+        // Suppressed: hold position, crouch-tilt mesh, fire twice as fast
+        ctx.agent.body.velocity.x *= 0.1
+        ctx.agent.body.velocity.z *= 0.1
+        if (ctx.agent.fireTimer <= 0) ctx.agent.fireTimer = 0   // bypass cooldown once
+        ctx.agent.tryShoot(ctx.playerPos)
+        ctx.agent.tryThrowGrenade(ctx.playerPos)
+        return 'running'
+      } else if (ctx.agent.retreatTimer > 0) {
         ctx.agent.moveAway(ctx.playerPos, WALK_SPEED, ctx.dt)
       } else if (ctx.agent.squadRole === 'flanker' && d > s.stopRange) {
         // Flanker: sweep wide to the side before closing in

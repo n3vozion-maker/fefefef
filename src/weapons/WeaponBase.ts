@@ -83,7 +83,10 @@ export abstract class WeaponBase {
 
   tryFire(origin: THREE.Vector3, direction: THREE.Vector3): boolean {
     if (this.fireCooldown > 0 || this.isReloading || this.ammoInMag <= 0) {
-      if (this.ammoInMag <= 0 && !this.isReloading) this.startReload()
+      if (this.ammoInMag <= 0 && !this.isReloading) {
+        bus.emit('dryFire', undefined)
+        this.startReload()
+      }
       return false
     }
     this.ammoInMag--

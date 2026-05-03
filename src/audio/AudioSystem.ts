@@ -373,6 +373,47 @@ const SOUNDS: Record<string, SoundFn> = {
     })
   },
 
+  // Dry fire — sharp metallic click on empty mag
+  dry_fire(ctx, dest) {
+    const t  = ctx.currentTime
+    const ns = noise(ctx, 0.008)
+    const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'
+    bp.frequency.value = 5200; bp.Q.value = 22
+    const g  = ctx.createGain()
+    g.gain.setValueAtTime(0.28, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.012)
+    ns.connect(bp); bp.connect(g); g.connect(dest); ns.start(t)
+    // Mechanical clunk
+    const osc = ctx.createOscillator(); osc.type = 'sine'
+    osc.frequency.setValueAtTime(420, t); osc.frequency.exponentialRampToValueAtTime(180, t + 0.018)
+    const og = ctx.createGain()
+    og.gain.setValueAtTime(0.14, t); og.gain.exponentialRampToValueAtTime(0.001, t + 0.022)
+    osc.connect(og); og.connect(dest); osc.start(t); osc.stop(t + 0.025)
+  },
+
+  // Weapon swap — quick double-click mechanical sound
+  weapon_swap(ctx, dest) {
+    const t = ctx.currentTime
+    ;[0, 0.055].forEach((delay) => {
+      const ns = noise(ctx, 0.010)
+      const bp = ctx.createBiquadFilter(); bp.type = 'bandpass'
+      bp.frequency.value = 3600; bp.Q.value = 14
+      const g  = ctx.createGain()
+      const s = t + delay
+      g.gain.setValueAtTime(0.18, s); g.gain.exponentialRampToValueAtTime(0.001, s + 0.018)
+      ns.connect(bp); bp.connect(g); g.connect(dest); ns.start(s)
+    })
+  },
+
+  // Heavy footstep for sprinting
+  footstep_heavy(ctx, dest) {
+    const t  = ctx.currentTime
+    const ns = noise(ctx, 0.055)
+    const lp = ctx.createBiquadFilter(); lp.type = 'lowpass'; lp.frequency.value = 380
+    const g  = ctx.createGain()
+    g.gain.setValueAtTime(0.55, t); g.gain.exponentialRampToValueAtTime(0.001, t + 0.055)
+    ns.connect(lp); lp.connect(g); g.connect(dest); ns.start(t)
+  },
+
   // Shell casing metallic tink on floor bounce
   shell_bounce(ctx, dest) {
     const t  = ctx.currentTime
@@ -551,7 +592,7 @@ export class AudioSystem {
     this.footstepTimer -= dt
     if (this.footstepTimer <= 0) {
       this.footstepTimer = 1 / rate
-      this.play('footstep')
+      this.play(sprinting ? 'footstep_heavy' : 'footstep')
     }
   }
 
@@ -638,8 +679,10 @@ export class AudioSystem {
       this.play('hit_flesh')
       this.play('hit_confirm')   // audible hit confirmation tick
     })
-    bus.on('agentDied', () => this.play('kill_confirm'))
-    bus.on('bulletImpact', () => this.play('hit_surface'))
+    bus.on('agentDied',      () => this.play('kill_confirm'))
+    bus.on('dryFire',        () => this.play('dry_fire'))
+    bus.on('weaponSwitched', () => this.play('weapon_swap'))
+    bus.on('bulletImpact',   () => this.play('hit_surface'))
 
     bus.on('airstrikeIncoming', () => this.play('airstrike_incoming'))
 

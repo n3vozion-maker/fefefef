@@ -74,6 +74,13 @@ export class WeaponManager {
 
   // ── Equip helpers (used at game start) ─────────────────────────────────────
 
+  /** Clear all slots and backpack — used before equipping a fresh starting loadout. */
+  clearAll(): void {
+    for (let i = 0; i < 3; i++) this.slots[i] = null
+    this.backpack.length = 0
+    this.pendingAmmo.clear()
+  }
+
   equip(weapon: WeaponBase, slot: 0 | 1 | 2): void {
     const prev = this.slots[slot]
     if (prev) this.backpack.push(prev)

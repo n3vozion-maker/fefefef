@@ -289,7 +289,7 @@ const airstrike   = new AirstrikeSystem(scene)
 const cover       = new DestructibleCoverSystem(scene, physics)
 void blood
 void barrels
-void nightVision
+
 void shells
 void cover
 
@@ -533,6 +533,12 @@ bus.on('upgradeApplied', () => {
 // Reset all bosses to full HP + un-aggroed when player starts a fresh run
 bus.on('newGameStarted', () => {
   for (const boss of allBosses) boss.resetAggro()
+
+  // Fresh starting loadout: M4A1 primary + M9 sidearm
+  weaponMgr.clearAll()
+  weaponMgr.equip(new FirearmWeapon('rifle_m4a1'), 0)
+  weaponMgr.equip(new FirearmWeapon('pistol_m9'),  2)
+  weaponMgr.switchTo(0)
 })
 
 bus.on('gameStarted', () => {
@@ -708,6 +714,7 @@ bus.on<number>('fixedUpdate', (dt) => {
 
   // Day/night, weather, ammo, vehicles, endgame
   dayNight.update(dt)
+  nightVision.update(dt)
   weather.update(dt, playerPos)
   briefing.update(dt)
   dmgNumbers.update(dt)
