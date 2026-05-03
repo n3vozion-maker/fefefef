@@ -12,6 +12,10 @@ const POI_COLORS: Record<string, string> = {
   outpost:          '#4fc3f7',
   crash_site:       '#90a4ae',
   checkpoint:       '#66bb6a',
+  weapon_cache:     '#ffeb3b',
+  comm_tower:       '#26c6da',
+  airfield:         '#ef9a9a',
+  lab:              '#80cbc4',
 }
 
 const POI_ICONS: Record<string, string> = {
@@ -21,6 +25,10 @@ const POI_ICONS: Record<string, string> = {
   outpost:          '▲',
   crash_site:       '✕',
   checkpoint:       '◉',
+  weapon_cache:     '⊞',
+  comm_tower:       '◈',
+  airfield:         '✈',
+  lab:              '⚗',
 }
 
 // ── 3D POI model builder ──────────────────────────────────────────────────────

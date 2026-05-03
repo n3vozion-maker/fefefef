@@ -764,7 +764,7 @@ bus.on<number>('fixedUpdate', (dt) => {
 
   viewmodel.update(dt, weaponMgr.isADS(), w?.getIsReloading() ?? false)
 
-  hud.update(w, playerStats, player.stamina, player.tech)
+  hud.update(w, playerStats, player.stamina, player.tech, player.isSprinting())
   hud.tick(dt, (playerStats.health / playerStats.maxHealth) * 100)
 
   const fwd = playerCam.getMuzzleDirection()

@@ -9,9 +9,9 @@ import { TechAbilities }      from './TechAbilities'
 
 // ── Tuning ────────────────────────────────────────────────────────────────────
 
-const WALK_SPEED   = 10
-const SPRINT_SPEED = 16
-const CROUCH_SPEED = 5
+const WALK_SPEED   = 20
+const SPRINT_SPEED = 34
+const CROUCH_SPEED = 8
 const JUMP_VEL     = 9
 const AIR_CONTROL  = 0.12
 
@@ -160,6 +160,9 @@ export class PlayerController {
 
     this.tickStamina(dt)
 
+    // Let the dash maintain its own velocity — don't overwrite it
+    if (this.tech.isDashing) return
+
     const crouching = this.input.isHeld('crouch')
     const dir = this.inputDir()
     this._moving = dir.lengthSq() > 0
@@ -189,6 +192,9 @@ export class PlayerController {
         }
       }
     }
+
+    // Let the dash maintain its own velocity in the air too
+    if (this.tech.isDashing) return
 
     // Air control
     const dir = this.inputDir()

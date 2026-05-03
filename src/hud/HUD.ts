@@ -20,6 +20,11 @@ export class HUD {
   private healthBar: HTMLElement
   private staminaBar: HTMLElement
 
+  // Center sprint stamina bar (Fortnite-style)
+  private sprintBar:      HTMLElement
+  private sprintBarFill:  HTMLElement
+  private sprintBarTimer  = 0    // how long to keep it visible after sprint stops
+
   // Crosshair lines (4-line tactical)
   private chT: HTMLElement
   private chB: HTMLElement
@@ -249,6 +254,43 @@ export class HUD {
       borderRadius: '1px', transition: 'width 0.1s',
     })
 
+    // ── Center sprint stamina bar (Fortnite-style) ────────────────────────────
+    this.sprintBar = this.el(root, {
+      position:   'fixed',
+      bottom:     '20%',
+      left:       '50%',
+      transform:  'translateX(-50%)',
+      display:    'flex',
+      flexDirection: 'column',
+      alignItems: 'center',
+      gap:        '4px',
+      opacity:    '0',
+      transition: 'opacity 0.25s',
+      pointerEvents: 'none',
+    })
+    // Optional small label
+    this.el(this.sprintBar, {
+      fontSize:      '8px',
+      color:         'rgba(255,255,255,0.40)',
+      letterSpacing: '.22em',
+      textTransform: 'uppercase',
+      fontFamily:    'monospace',
+    }).textContent = 'STAMINA'
+    // Track
+    const sprintTrack = this.el(this.sprintBar, {
+      width:        '240px',
+      height:       '4px',
+      background:   'rgba(255,255,255,0.12)',
+      borderRadius: '2px',
+    })
+    this.sprintBarFill = this.el(sprintTrack, {
+      height:       '100%',
+      width:        '100%',
+      background:   '#ffffff',
+      borderRadius: '2px',
+      transition:   'width 0.08s, background 0.2s',
+    })
+
     // ── Tech abilities ─────────────────────────────────────────────────────────
     const techCol = this.el(root, {
       position: 'absolute', bottom: '80px', left: '34px',
@@ -358,7 +400,7 @@ export class HUD {
 
   // ── Update (called every frame) ───────────────────────────────────────────────
 
-  update(weapon: WeaponBase | null, stats: PlayerStats, stamina: number, tech?: TechAbilities): void {
+  update(weapon: WeaponBase | null, stats: PlayerStats, stamina: number, tech?: TechAbilities, sprinting = false): void {
     // ── Ammo ──────────────────────────────────────────────────────────────────
     if (weapon) {
       this.weaponEl.textContent = weapon.getName()
@@ -423,6 +465,13 @@ export class HUD {
     // ── Stamina ────────────────────────────────────────────────────────────────
     this.staminaBar.style.width      = `${stamina.toFixed(1)}%`
     this.staminaBar.style.background = stamina < 25 ? '#ef5350' : '#4caf50'
+
+    // Center sprint bar — show while sprinting or draining, hide when full & resting
+    const showSprintBar = sprinting || stamina < 99
+    this.sprintBar.style.opacity = showSprintBar ? '1' : '0'
+    this.sprintBarFill.style.width = `${stamina.toFixed(1)}%`
+    this.sprintBarFill.style.background =
+      stamina < 20 ? '#ef5350' : stamina < 50 ? '#ffa726' : '#ffffff'
 
     // ── Tech ───────────────────────────────────────────────────────────────────
     if (tech) {

@@ -5,6 +5,10 @@ export type POIType =
   | 'outpost'
   | 'crash_site'
   | 'checkpoint'
+  | 'weapon_cache'
+  | 'comm_tower'
+  | 'airfield'
+  | 'lab'
 
 export interface PointOfInterest {
   id:          string
@@ -42,6 +46,29 @@ export const POI_DEFINITIONS: Readonly<PointOfInterest>[] = [
   { id: 'crash_d',     name: 'Crash Site Delta',       type: 'crash_site',       x:  400, z:  300, radius:  70, discovered: false, fastTravel: false },
   { id: 'crash_e',     name: 'Crash Site Echo',         type: 'crash_site',       x: -500, z: -800, radius:  70, discovered: false, fastTravel: false },
   { id: 'crash_z',     name: 'Crash Site Zulu',         type: 'crash_site',       x: 1300, z: -600, radius:  65, discovered: false, fastTravel: false },
+
+  // ── Weapon caches ─────────────────────────────────────────────────────────
+  { id: 'cache_a',   name: 'Weapons Cache — Alpha', type: 'weapon_cache', x:  340, z: -260, radius: 40, discovered: false, fastTravel: false },
+  { id: 'cache_b',   name: 'Weapons Cache — Bravo', type: 'weapon_cache', x: -460, z:  640, radius: 40, discovered: false, fastTravel: false },
+  { id: 'cache_c',   name: 'Weapons Cache — Gamma', type: 'weapon_cache', x:  820, z: -820, radius: 40, discovered: false, fastTravel: false },
+  { id: 'cache_d',   name: 'Weapons Cache — Delta', type: 'weapon_cache', x: -740, z: -480, radius: 40, discovered: false, fastTravel: false },
+
+  // ── Comms towers ──────────────────────────────────────────────────────────
+  { id: 'tower_1',   name: 'Relay Tower 01',        type: 'comm_tower',   x:  160, z: -600, radius: 35, discovered: false, fastTravel: false },
+  { id: 'tower_2',   name: 'Relay Tower 02',         type: 'comm_tower',   x: -540, z:  240, radius: 35, discovered: false, fastTravel: false },
+  { id: 'tower_3',   name: 'Relay Tower 03',         type: 'comm_tower',   x:  960, z:  -80, radius: 35, discovered: false, fastTravel: false },
+
+  // ── Airfield ──────────────────────────────────────────────────────────────
+  { id: 'airfield_a', name: 'Abandoned Airfield',   type: 'airfield',     x: -1000, z: 1100, radius: 200, discovered: false, fastTravel: false },
+  { id: 'airfield_b', name: 'Forward Air Base',     type: 'airfield',     x:  1400, z: -300, radius: 180, discovered: false, fastTravel: false },
+
+  // ── Labs ──────────────────────────────────────────────────────────────────
+  { id: 'lab_omega',  name: 'Lab OMEGA',            type: 'lab',          x: -1200, z: -1300, radius: 90, discovered: false, fastTravel: false },
+  { id: 'lab_sigma',  name: 'Research Post SIGMA',  type: 'lab',          x:   600, z:  1000, radius: 70, discovered: false, fastTravel: false },
+
+  // ── Additional outposts ───────────────────────────────────────────────────
+  { id: 'outpost_j',  name: 'Outpost Juliet',       type: 'outpost',      x:  -80, z:  -700, radius: 55, discovered: false, fastTravel: false },
+  { id: 'outpost_k',  name: 'Outpost Kilo',          type: 'outpost',      x:  520, z:   740, radius: 55, discovered: false, fastTravel: false },
 
   // ── Checkpoints (Dying Light safe houses) ─────────────────────────────────
   { id: 'cp_0',  name: 'Safe House — Spawn',     type: 'checkpoint', x:    0, z:    0, radius: 22, discovered: true,  fastTravel: false },

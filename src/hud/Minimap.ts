@@ -17,6 +17,10 @@ const POI_COLORS: Record<string, string> = {
   outpost:          '#4fc3f7',
   crash_site:       '#90a4ae',
   checkpoint:       '#66bb6a',
+  weapon_cache:     '#ffeb3b',
+  comm_tower:       '#26c6da',
+  airfield:         '#ef9a9a',
+  lab:              '#80cbc4',
 }
 
 // ── Minimap ───────────────────────────────────────────────────────────────────
@@ -140,8 +144,12 @@ export class Minimap {
       }
     }
 
-    // ── Nearby enemies ────────────────────────────────────────────────────────
+    // ── Nearby enemies (radar range = 180 m only) ─────────────────────────────
+    const RADAR_RANGE = 180
     for (const ep of enemyPositions) {
+      const dx = ep.x - playerPos.x
+      const dz = ep.z - playerPos.z
+      if (dx * dx + dz * dz > RADAR_RANGE * RADAR_RANGE) continue
       const [mx, mz] = toMap(ep.x, ep.z)
       if (mx < 0 || mx > SIZE || mz < 0 || mz > SIZE) continue
       ctx.beginPath()
